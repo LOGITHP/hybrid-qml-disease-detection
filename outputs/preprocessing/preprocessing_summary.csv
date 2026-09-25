@@ -1,0 +1,7 @@
+Stage,Samples,Features,Notes
+Raw,3000,15,"Raw unscaled CSV ingestion (3,000 x 16)"
+After duplicate handling,2998,15,Removed 2 exact duplicate rows to prevent cross-split leakage
+After cleaning,2998,15,"0 invalid values, 0 missing cells, clean encoding"
+Training,2098,15,70% stratified partition; used to fit MinMaxScaler
+Validation,450,15,15% stratified partition; reserved for sequential feature selection
+Test,450,15,15% stratified partition; completely untouched out-of-sample holdout

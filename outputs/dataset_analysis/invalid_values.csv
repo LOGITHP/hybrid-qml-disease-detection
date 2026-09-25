@@ -1,0 +1,2 @@
+Feature,Problem,Count,Possible action
+All Features Checked,"None detected (No invalid values, negative ages, or out-of-domain categories)",0,Proceed with clean baseline schema

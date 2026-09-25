@@ -1,0 +1,53 @@
+{
+    "random_state": 42,
+    "split_ratios": {
+        "train": 0.7,
+        "validation": 0.15,
+        "test": 0.15
+    },
+    "original_samples": 3000,
+    "final_samples": 2998,
+    "duplicates_removed": 2,
+    "removed_columns": [],
+    "encoding_decisions": {
+        "GENDER": {
+            "type": "Binary Nominal",
+            "mapping": {
+                "F": 0,
+                "M": 1
+            }
+        },
+        "AGE": {
+            "type": "Continuous Numerical",
+            "transformation": "Preserved raw, MinMax scaling in later stage"
+        },
+        "SURVEY_FEATURES": {
+            "columns": [
+                "SMOKING",
+                "YELLOW_FINGERS",
+                "ANXIETY",
+                "PEER_PRESSURE",
+                "CHRONIC_DISEASE",
+                "FATIGUE",
+                "ALLERGY",
+                "WHEEZING",
+                "ALCOHOL_CONSUMING",
+                "COUGHING",
+                "SHORTNESS_OF_BREATH",
+                "SWALLOWING_DIFFICULTY",
+                "CHEST_PAIN"
+            ],
+            "type": "Discrete Binary",
+            "mapping": "{1: 0, 2: 1}"
+        }
+    },
+    "scaling_method": "MinMaxScaler(feature_range=(0.0, 1.0))",
+    "scaler_fit_target": "X_train only",
+    "imputer_used": false,
+    "features_preserved": 15,
+    "target_column": "LUNG_CANCER",
+    "target_mapping": {
+        "NO": 0,
+        "YES": 1
+    }
+}

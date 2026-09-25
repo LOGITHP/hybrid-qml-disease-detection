@@ -1,0 +1,17 @@
+Column Name,Data Type,Variable Category,Unique Count,Unique Values,Missing Count,Missing (%)
+GENDER,str,Binary Discrete,2,"['F', 'M']",0,0.00%
+AGE,int64,Continuous Numerical,51,"[np.int64(30), np.int64(31), np.int64(32), np.int64(33), np.int64(34), np.int64(35), np.int64(36), np.int64(37), np.int64(38), np.int64(39), np.int64(40), np.int64(41), np.int64(42), np.int64(43), np.int64(44), np.int64(45), np.int64(46), np.int64(47), np.int64(48), np.int64(49), np.int64(50), np.int64(51), np.int64(52), np.int64(53), np.int64(54), np.int64(55), np.int64(56), np.int64(57), np.int64(58), np.int64(59), np.int64(60), np.int64(61), np.int64(62), np.int64(63), np.int64(64), np.int64(65), np.int64(66), np.int64(67), np.int64(68), np.int64(69), np.int64(70), np.int64(71), np.int64(72), np.int64(73), np.int64(74), np.int64(75), np.int64(76), np.int64(77), np.int64(78), np.int64(79), np.int64(80)]",0,0.00%
+SMOKING,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+YELLOW_FINGERS,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+ANXIETY,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+PEER_PRESSURE,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+CHRONIC_DISEASE,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+FATIGUE,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+ALLERGY,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+WHEEZING,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+ALCOHOL_CONSUMING,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+COUGHING,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+SHORTNESS_OF_BREATH,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+SWALLOWING_DIFFICULTY,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+CHEST_PAIN,int64,Binary Discrete,2,"[np.int64(1), np.int64(2)]",0,0.00%
+LUNG_CANCER,str,Target (Binary Categorical),2,"['NO', 'YES']",0,0.00%

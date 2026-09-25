@@ -1,0 +1,8 @@
+Metric,Value
+Dataset Source Path,V1_dataset.csv
+Total Sample Count (Rows),"3,000"
+Total Attribute Count (Columns),16
+Memory Footprint,625.63 KB
+Index Specification,RangeIndex (0 to 2999)
+Feature Columns Detected,15
+Target Column Candidate,LUNG_CANCER

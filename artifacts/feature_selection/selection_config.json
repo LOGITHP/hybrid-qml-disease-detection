@@ -1,0 +1,24 @@
+{
+    "project": "Hybrid Quantum Machine Learning Platform for Early Disease Detection",
+    "stage": "03_feature_engineering_selection",
+    "target_column": "LUNG_CANCER",
+    "target_mapping": {
+        "NO": 0,
+        "YES": 1
+    },
+    "original_feature_count": 15,
+    "candidate_pool_size": 8,
+    "final_feature_count": 4,
+    "selected_features": [
+        "WHEEZING",
+        "YELLOW_FINGERS",
+        "AGE",
+        "SHORTNESS_OF_BREATH"
+    ],
+    "selection_method": "Sequential Forward Selection (SFS)",
+    "primary_criterion": "Balanced Accuracy (Validation Set)",
+    "evaluator_model": "LogisticRegression(solver='lbfgs', random_state=42)",
+    "random_state": 42,
+    "test_set_used_during_selection": false,
+    "ready_for_4_qubit_vqc": true
+}
