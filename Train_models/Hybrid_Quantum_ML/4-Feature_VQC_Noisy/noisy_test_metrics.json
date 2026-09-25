@@ -1,0 +1,31 @@
+{
+    "model": "4-Qubit Noisy Variational Quantum Classifier (VQC)",
+    "framework": "PennyLane 0.45.1",
+    "device": "default.mixed (density matrix simulator)",
+    "noise_model": {
+        "single_qubit_depolarizing": 0.005,
+        "two_qubit_depolarizing": 0.02,
+        "measurement_bit_flip": 0.015
+    },
+    "features": [
+        "WHEEZING",
+        "YELLOW_FINGERS",
+        "AGE",
+        "SHORTNESS_OF_BREATH"
+    ],
+    "metrics": {
+        "Accuracy": 0.5267,
+        "Balanced Accuracy": 0.527,
+        "Sensitivity": 0.4934,
+        "Specificity": 0.5605,
+        "Precision": 0.5333,
+        "F1-score": 0.5126,
+        "ROC-AUC": 0.5174
+    },
+    "confusion_matrix": {
+        "True Negative": 125,
+        "False Positive": 98,
+        "False Negative": 115,
+        "True Positive": 112
+    }
+}

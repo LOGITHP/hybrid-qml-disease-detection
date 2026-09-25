@@ -1,0 +1,342 @@
+[
+    {
+        "Model Name": "4-Qubit Noiseless VQC",
+        "Category": "Quantum (Noiseless)",
+        "Qubits": 4,
+        "Layers": 2,
+        "Hilbert Space Dim": 16,
+        "Trainable Params": 9,
+        "Simulation Device": "default.qubit (statevector)",
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 124,
+            "False Positive": 99,
+            "False Negative": 114,
+            "True Positive": 113
+        },
+        "Accuracy": 0.5267,
+        "Balanced Accuracy": 0.5269,
+        "Sensitivity": 0.4978,
+        "Specificity": 0.5561,
+        "Precision": 0.533,
+        "F1-Score": 0.5148,
+        "ROC-AUC": 0.5147
+    },
+    {
+        "Model Name": "4-Qubit Noisy VQC",
+        "Category": "Quantum (Noisy NISQ)",
+        "Qubits": 4,
+        "Layers": 2,
+        "Hilbert Space Dim": 16,
+        "Trainable Params": 9,
+        "Simulation Device": "default.mixed (density matrix)",
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 125,
+            "False Positive": 98,
+            "False Negative": 115,
+            "True Positive": 112
+        },
+        "Accuracy": 0.5267,
+        "Balanced Accuracy": 0.527,
+        "Sensitivity": 0.4934,
+        "Specificity": 0.5605,
+        "Precision": 0.5333,
+        "F1-Score": 0.5126,
+        "ROC-AUC": 0.5174
+    },
+    {
+        "Model Name": "6-Qubit Noiseless VQC",
+        "Category": "Quantum (Noiseless)",
+        "Qubits": 6,
+        "Layers": 2,
+        "Hilbert Space Dim": 64,
+        "Trainable Params": 13,
+        "Simulation Device": "default.qubit (statevector)",
+        "Features Used": [
+            "COUGHING",
+            "PEER_PRESSURE",
+            "AGE",
+            "YELLOW_FINGERS",
+            "SHORTNESS_OF_BREATH",
+            "CHEST_PAIN"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 70,
+            "False Positive": 153,
+            "False Negative": 58,
+            "True Positive": 169
+        },
+        "Accuracy": 0.5311,
+        "Balanced Accuracy": 0.5292,
+        "Sensitivity": 0.7445,
+        "Specificity": 0.3139,
+        "Precision": 0.5248,
+        "F1-Score": 0.6157,
+        "ROC-AUC": 0.5555
+    },
+    {
+        "Model Name": "8-Qubit Noiseless VQC",
+        "Category": "Quantum (Noiseless)",
+        "Qubits": 8,
+        "Layers": 2,
+        "Hilbert Space Dim": 256,
+        "Trainable Params": 17,
+        "Simulation Device": "default.qubit (statevector)",
+        "Features Used": [
+            "COUGHING",
+            "PEER_PRESSURE",
+            "AGE",
+            "ANXIETY",
+            "ALLERGY",
+            "SHORTNESS_OF_BREATH",
+            "CHEST_PAIN",
+            "CHRONIC_DISEASE"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 121,
+            "False Positive": 102,
+            "False Negative": 130,
+            "True Positive": 97
+        },
+        "Accuracy": 0.4844,
+        "Balanced Accuracy": 0.485,
+        "Sensitivity": 0.4273,
+        "Specificity": 0.5426,
+        "Precision": 0.4874,
+        "F1-Score": 0.4554,
+        "ROC-AUC": 0.499
+    },
+    {
+        "Model Name": "Logistic Regression (4 Feats)",
+        "Category": "Classical Baseline",
+        "Qubits": 0,
+        "Layers": 0,
+        "Hilbert Space Dim": 0,
+        "Trainable Params": 5,
+        "Simulation Device": "Classical CPU (Scikit-Learn)",
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 101,
+            "False Positive": 122,
+            "False Negative": 95,
+            "True Positive": 132
+        },
+        "Accuracy": 0.5177777777777778,
+        "Balanced Accuracy": 0.517206297781553,
+        "Sensitivity": 0.5814977973568282,
+        "Specificity": 0.452914798206278,
+        "Precision": 0.5196850393700787,
+        "F1-Score": 0.5488565488565489,
+        "ROC-AUC": 0.5256119001995219
+    },
+    {
+        "Model Name": "Classical Linear SVM (4 Feats)",
+        "Category": "Classical Baseline",
+        "Qubits": 0,
+        "Layers": 0,
+        "Hilbert Space Dim": 0,
+        "Trainable Params": 5,
+        "Simulation Device": "Classical CPU (Scikit-Learn)",
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 111,
+            "False Positive": 112,
+            "False Negative": 109,
+            "True Positive": 118
+        },
+        "Accuracy": 0.5088888888888888,
+        "Balanced Accuracy": 0.5087908180399439,
+        "Sensitivity": 0.5198237885462555,
+        "Specificity": 0.4977578475336323,
+        "Precision": 0.5130434782608696,
+        "F1-Score": 0.5164113785557987,
+        "ROC-AUC": 0.49721459473341106
+    },
+    {
+        "Model Name": "Classical RBF SVM (4 Feats)",
+        "Category": "Classical Baseline",
+        "Qubits": 0,
+        "Layers": 0,
+        "Hilbert Space Dim": 0,
+        "Trainable Params": "N/A",
+        "Simulation Device": "Classical CPU (Scikit-Learn)",
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 120,
+            "False Positive": 103,
+            "False Negative": 111,
+            "True Positive": 116
+        },
+        "Accuracy": 0.5244444444444445,
+        "Balanced Accuracy": 0.524564903893641,
+        "Sensitivity": 0.5110132158590308,
+        "Specificity": 0.5381165919282511,
+        "Precision": 0.5296803652968036,
+        "F1-Score": 0.5201793721973094,
+        "ROC-AUC": 0.5317951047984038
+    },
+    {
+        "Model Name": "Logistic Regression (6 Feats)",
+        "Category": "Classical Baseline",
+        "Qubits": 0,
+        "Layers": 0,
+        "Hilbert Space Dim": 0,
+        "Trainable Params": 7,
+        "Simulation Device": "Classical CPU (Scikit-Learn)",
+        "Features Used": [
+            "COUGHING",
+            "PEER_PRESSURE",
+            "AGE",
+            "YELLOW_FINGERS",
+            "SHORTNESS_OF_BREATH",
+            "CHEST_PAIN"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 88,
+            "False Positive": 135,
+            "False Negative": 72,
+            "True Positive": 155
+        },
+        "Accuracy": 0.54,
+        "Balanced Accuracy": 0.5387191086703147,
+        "Sensitivity": 0.6828193832599119,
+        "Specificity": 0.39461883408071746,
+        "Precision": 0.5344827586206896,
+        "F1-Score": 0.5996131528046421,
+        "ROC-AUC": 0.5531103692143576
+    },
+    {
+        "Model Name": "Classical RBF SVM (6 Feats)",
+        "Category": "Classical Baseline",
+        "Qubits": 0,
+        "Layers": 0,
+        "Hilbert Space Dim": 0,
+        "Trainable Params": "N/A",
+        "Simulation Device": "Classical CPU (Scikit-Learn)",
+        "Features Used": [
+            "COUGHING",
+            "PEER_PRESSURE",
+            "AGE",
+            "YELLOW_FINGERS",
+            "SHORTNESS_OF_BREATH",
+            "CHEST_PAIN"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 108,
+            "False Positive": 115,
+            "False Negative": 89,
+            "True Positive": 138
+        },
+        "Accuracy": 0.5466666666666666,
+        "Balanced Accuracy": 0.5461172240769641,
+        "Sensitivity": 0.6079295154185022,
+        "Specificity": 0.484304932735426,
+        "Precision": 0.5454545454545454,
+        "F1-Score": 0.575,
+        "ROC-AUC": 0.5315876810019557
+    },
+    {
+        "Model Name": "Classical RBF SVM (15 Feats)",
+        "Category": "Classical Baseline",
+        "Qubits": 0,
+        "Layers": 0,
+        "Hilbert Space Dim": 0,
+        "Trainable Params": "N/A",
+        "Simulation Device": "Classical CPU (Scikit-Learn)",
+        "Features Used": [
+            "GENDER",
+            "AGE",
+            "SMOKING",
+            "YELLOW_FINGERS",
+            "ANXIETY",
+            "PEER_PRESSURE",
+            "CHRONIC_DISEASE",
+            "FATIGUE",
+            "ALLERGY",
+            "WHEEZING",
+            "ALCOHOL_CONSUMING",
+            "COUGHING",
+            "SHORTNESS_OF_BREATH",
+            "SWALLOWING_DIFFICULTY",
+            "CHEST_PAIN"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 105,
+            "False Positive": 118,
+            "False Negative": 106,
+            "True Positive": 121
+        },
+        "Accuracy": 0.5022222222222222,
+        "Balanced Accuracy": 0.5019458327571562,
+        "Sensitivity": 0.5330396475770925,
+        "Specificity": 0.47085201793721976,
+        "Precision": 0.5062761506276151,
+        "F1-Score": 0.51931330472103,
+        "ROC-AUC": 0.5160111416210664
+    },
+    {
+        "Model Name": "Random Forest (15 Feats)",
+        "Category": "Classical Baseline",
+        "Qubits": 0,
+        "Layers": 0,
+        "Hilbert Space Dim": 0,
+        "Trainable Params": "N/A",
+        "Simulation Device": "Classical CPU (Scikit-Learn)",
+        "Features Used": [
+            "GENDER",
+            "AGE",
+            "SMOKING",
+            "YELLOW_FINGERS",
+            "ANXIETY",
+            "PEER_PRESSURE",
+            "CHRONIC_DISEASE",
+            "FATIGUE",
+            "ALLERGY",
+            "WHEEZING",
+            "ALCOHOL_CONSUMING",
+            "COUGHING",
+            "SHORTNESS_OF_BREATH",
+            "SWALLOWING_DIFFICULTY",
+            "CHEST_PAIN"
+        ],
+        "Confusion Matrix": {
+            "True Negative": 129,
+            "False Positive": 94,
+            "False Negative": 106,
+            "True Positive": 121
+        },
+        "Accuracy": 0.5555555555555556,
+        "Balanced Accuracy": 0.5557574919499813,
+        "Sensitivity": 0.5330396475770925,
+        "Specificity": 0.57847533632287,
+        "Precision": 0.5627906976744186,
+        "F1-Score": 0.5475113122171946,
+        "ROC-AUC": 0.5638865293060193
+    }
+]

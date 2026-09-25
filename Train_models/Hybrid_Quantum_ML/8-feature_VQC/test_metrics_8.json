@@ -1,0 +1,35 @@
+{
+    "model": "8-Qubit Noiseless Variational Quantum Classifier (VQC)",
+    "framework": "PennyLane 0.45.1",
+    "device": "default.qubit (statevector simulator)",
+    "hilbert_space_dimension": 256,
+    "features": [
+        "COUGHING",
+        "PEER_PRESSURE",
+        "AGE",
+        "ANXIETY",
+        "ALLERGY",
+        "SHORTNESS_OF_BREATH",
+        "CHEST_PAIN",
+        "CHRONIC_DISEASE"
+    ],
+    "n_qubits": 8,
+    "n_layers": 2,
+    "test_samples": 450,
+    "best_training_epoch": 2,
+    "metrics": {
+        "Accuracy": 0.4844,
+        "Balanced Accuracy": 0.485,
+        "Sensitivity (Recall)": 0.4273,
+        "Specificity": 0.5426,
+        "Precision": 0.4874,
+        "F1-Score": 0.4554,
+        "ROC-AUC": 0.499
+    },
+    "confusion_matrix": {
+        "True Negative": 121,
+        "False Positive": 102,
+        "False Negative": 130,
+        "True Positive": 97
+    }
+}
