@@ -1,0 +1,30 @@
+{
+    "model": "4-Qubit Noiseless Variational Quantum Classifier (VQC)",
+    "framework": "PennyLane 0.45.1",
+    "device": "default.qubit (statevector simulator)",
+    "features": [
+        "WHEEZING",
+        "YELLOW_FINGERS",
+        "AGE",
+        "SHORTNESS_OF_BREATH"
+    ],
+    "n_qubits": 4,
+    "n_layers": 2,
+    "test_samples": 450,
+    "best_training_epoch": 7,
+    "metrics": {
+        "Accuracy": 0.5267,
+        "Balanced Accuracy": 0.5269,
+        "Sensitivity (Recall)": 0.4978,
+        "Specificity": 0.5561,
+        "Precision": 0.533,
+        "F1-Score": 0.5148,
+        "ROC-AUC": 0.5147
+    },
+    "confusion_matrix": {
+        "True Negative": 124,
+        "False Positive": 99,
+        "False Negative": 114,
+        "True Positive": 113
+    }
+}
