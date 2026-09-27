@@ -87,4 +87,4 @@ Because Variational Quantum Circuits scale in Hilbert space dimensionality accor
 
 ## 5. Ethical & Clinical Usage Disclaimer
 
-This dataset represents de-identified observational survey data for experimental and algorithmic benchmarking within an academic research context (Smart India Hackathon). It is **not** a certified medical diagnostic device and must not be used for direct clinical decision-making without institutional clinical trial validation.
+This dataset represents de-identified observational survey data for experimental and algorithmic benchmarking within the Hybrid Quantum Machine Learning Platform for Early Disease Detection. It is **not** a certified medical diagnostic device and must not be used for direct clinical decision-making without institutional clinical trial validation.
