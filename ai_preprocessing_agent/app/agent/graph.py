@@ -489,6 +489,7 @@ def node_feature_selection(state: PreprocessingState) -> Dict[str, Any]:
         store["y_train"],
         store["X_val"],
         store["X_test"],
+        y_val=store.get("y_val"),
         method=method,
         target_feature_count=target_count,
         random_state=config.get("split", {}).get("random_state", 42)

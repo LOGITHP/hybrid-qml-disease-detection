@@ -10,7 +10,7 @@ preprocessing:
   missing_values: "median"
   duplicates: "remove"
   categorical_cleaning: "normalize"
-  categorical_encoding: "one_hot"
+  categorical_encoding: "ordinal"
   scaling: "minmax"
   outliers: "retain"
 
@@ -20,7 +20,7 @@ feature_engineering:
 
 feature_selection:
   enabled: true
-  method: "mutual_info"
+  method: "sfs"
   target_feature_count: 4
 
 dimensionality_reduction:
