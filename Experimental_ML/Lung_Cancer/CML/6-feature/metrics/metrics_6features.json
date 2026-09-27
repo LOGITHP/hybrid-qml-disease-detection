@@ -1,0 +1,296 @@
+[
+    {
+        "Model Name": "Classical Linear SVM (4 Feats)",
+        "Category": "Classical (SVM)",
+        "Kernel": "linear",
+        "Feature Count": 4,
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Best Hyperparameters": {
+            "C": 0.01,
+            "class_weight": null
+        },
+        "CV Best Recall": 1.0,
+        "Accuracy": 0.5044444444444445,
+        "Balanced Accuracy": 0.5,
+        "Sensitivity": 1.0,
+        "Specificity": 0.0,
+        "Precision": 0.5044444444444445,
+        "F1-Score": 0.670605612998523,
+        "ROC-AUC": 0.4975306690899034,
+        "Confusion Matrix": {
+            "True Negative": 0,
+            "False Positive": 223,
+            "False Negative": 0,
+            "True Positive": 227
+        },
+        "Missed Cancers (FN)": 0,
+        "Correct Detections (TP)": 227
+    },
+    {
+        "Model Name": "Classical RBF SVM (4 Feats)",
+        "Category": "Classical (SVM)",
+        "Kernel": "rbf",
+        "Feature Count": 4,
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Best Hyperparameters": {
+            "C": 0.1,
+            "class_weight": null,
+            "gamma": 0.05
+        },
+        "CV Best Recall": 1.0,
+        "Accuracy": 0.5044444444444445,
+        "Balanced Accuracy": 0.5,
+        "Sensitivity": 1.0,
+        "Specificity": 0.0,
+        "Precision": 0.5044444444444445,
+        "F1-Score": 0.670605612998523,
+        "ROC-AUC": 0.506825230635507,
+        "Confusion Matrix": {
+            "True Negative": 0,
+            "False Positive": 223,
+            "False Negative": 0,
+            "True Positive": 227
+        },
+        "Missed Cancers (FN)": 0,
+        "Correct Detections (TP)": 227
+    },
+    {
+        "Model Name": "Classical Linear SVM (6 Feats)",
+        "Category": "Classical (SVM)",
+        "Kernel": "linear",
+        "Feature Count": 6,
+        "Features Used": [
+            "COUGHING",
+            "PEER_PRESSURE",
+            "AGE",
+            "YELLOW_FINGERS",
+            "SHORTNESS_OF_BREATH",
+            "CHEST_PAIN"
+        ],
+        "Best Hyperparameters": {
+            "C": 0.01,
+            "class_weight": null
+        },
+        "CV Best Recall": 1.0,
+        "Accuracy": 0.5044444444444445,
+        "Balanced Accuracy": 0.5,
+        "Sensitivity": 1.0,
+        "Specificity": 0.0,
+        "Precision": 0.5044444444444445,
+        "F1-Score": 0.670605612998523,
+        "ROC-AUC": 0.4540506904249225,
+        "Confusion Matrix": {
+            "True Negative": 0,
+            "False Positive": 223,
+            "False Negative": 0,
+            "True Positive": 227
+        },
+        "Missed Cancers (FN)": 0,
+        "Correct Detections (TP)": 227
+    },
+    {
+        "Model Name": "Classical RBF SVM (6 Feats)",
+        "Category": "Classical (SVM)",
+        "Kernel": "rbf",
+        "Feature Count": 6,
+        "Features Used": [
+            "COUGHING",
+            "PEER_PRESSURE",
+            "AGE",
+            "YELLOW_FINGERS",
+            "SHORTNESS_OF_BREATH",
+            "CHEST_PAIN"
+        ],
+        "Best Hyperparameters": {
+            "C": 0.1,
+            "class_weight": null,
+            "gamma": 0.05
+        },
+        "CV Best Recall": 1.0,
+        "Accuracy": 0.5044444444444445,
+        "Balanced Accuracy": 0.5,
+        "Sensitivity": 1.0,
+        "Specificity": 0.0,
+        "Precision": 0.5044444444444445,
+        "F1-Score": 0.670605612998523,
+        "ROC-AUC": 0.45272712905711066,
+        "Confusion Matrix": {
+            "True Negative": 0,
+            "False Positive": 223,
+            "False Negative": 0,
+            "True Positive": 227
+        },
+        "Missed Cancers (FN)": 0,
+        "Correct Detections (TP)": 227
+    },
+    {
+        "Model Name": "Classical Linear SVM (8 Feats)",
+        "Category": "Classical (SVM)",
+        "Kernel": "linear",
+        "Feature Count": 8,
+        "Features Used": [
+            "COUGHING",
+            "PEER_PRESSURE",
+            "AGE",
+            "ANXIETY",
+            "ALLERGY",
+            "SHORTNESS_OF_BREATH",
+            "CHEST_PAIN",
+            "CHRONIC_DISEASE"
+        ],
+        "Best Hyperparameters": {
+            "C": 0.01,
+            "class_weight": null
+        },
+        "CV Best Recall": 1.0,
+        "Accuracy": 0.5044444444444445,
+        "Balanced Accuracy": 0.5,
+        "Sensitivity": 1.0,
+        "Specificity": 0.0,
+        "Precision": 0.5044444444444445,
+        "F1-Score": 0.670605612998523,
+        "ROC-AUC": 0.5064696469844531,
+        "Confusion Matrix": {
+            "True Negative": 0,
+            "False Positive": 223,
+            "False Negative": 0,
+            "True Positive": 227
+        },
+        "Missed Cancers (FN)": 0,
+        "Correct Detections (TP)": 227
+    },
+    {
+        "Model Name": "Classical RBF SVM (8 Feats)",
+        "Category": "Classical (SVM)",
+        "Kernel": "rbf",
+        "Feature Count": 8,
+        "Features Used": [
+            "COUGHING",
+            "PEER_PRESSURE",
+            "AGE",
+            "ANXIETY",
+            "ALLERGY",
+            "SHORTNESS_OF_BREATH",
+            "CHEST_PAIN",
+            "CHRONIC_DISEASE"
+        ],
+        "Best Hyperparameters": {
+            "C": 0.1,
+            "class_weight": null,
+            "gamma": 0.05
+        },
+        "CV Best Recall": 1.0,
+        "Accuracy": 0.5044444444444445,
+        "Balanced Accuracy": 0.5,
+        "Sensitivity": 1.0,
+        "Specificity": 0.0,
+        "Precision": 0.5044444444444445,
+        "F1-Score": 0.670605612998523,
+        "ROC-AUC": 0.48786076924596516,
+        "Confusion Matrix": {
+            "True Negative": 0,
+            "False Positive": 223,
+            "False Negative": 0,
+            "True Positive": 227
+        },
+        "Missed Cancers (FN)": 0,
+        "Correct Detections (TP)": 227
+    },
+    {
+        "Model Name": "Classical Linear SVM (15 Feats)",
+        "Category": "Classical (SVM)",
+        "Kernel": "linear",
+        "Feature Count": 15,
+        "Features Used": [
+            "GENDER",
+            "AGE",
+            "SMOKING",
+            "YELLOW_FINGERS",
+            "ANXIETY",
+            "PEER_PRESSURE",
+            "CHRONIC_DISEASE",
+            "FATIGUE",
+            "ALLERGY",
+            "WHEEZING",
+            "ALCOHOL_CONSUMING",
+            "COUGHING",
+            "SHORTNESS_OF_BREATH",
+            "SWALLOWING_DIFFICULTY",
+            "CHEST_PAIN"
+        ],
+        "Best Hyperparameters": {
+            "C": 0.01,
+            "class_weight": null
+        },
+        "CV Best Recall": 0.896124031007752,
+        "Accuracy": 0.4955555555555556,
+        "Balanced Accuracy": 0.49229568756049863,
+        "Sensitivity": 0.8590308370044053,
+        "Specificity": 0.12556053811659193,
+        "Precision": 0.5,
+        "F1-Score": 0.6320907617504052,
+        "ROC-AUC": 0.4928982043025622,
+        "Confusion Matrix": {
+            "True Negative": 28,
+            "False Positive": 195,
+            "False Negative": 32,
+            "True Positive": 195
+        },
+        "Missed Cancers (FN)": 32,
+        "Correct Detections (TP)": 195
+    },
+    {
+        "Model Name": "Classical RBF SVM (15 Feats)",
+        "Category": "Classical (SVM)",
+        "Kernel": "rbf",
+        "Feature Count": 15,
+        "Features Used": [
+            "GENDER",
+            "AGE",
+            "SMOKING",
+            "YELLOW_FINGERS",
+            "ANXIETY",
+            "PEER_PRESSURE",
+            "CHRONIC_DISEASE",
+            "FATIGUE",
+            "ALLERGY",
+            "WHEEZING",
+            "ALCOHOL_CONSUMING",
+            "COUGHING",
+            "SHORTNESS_OF_BREATH",
+            "SWALLOWING_DIFFICULTY",
+            "CHEST_PAIN"
+        ],
+        "Best Hyperparameters": {
+            "C": 0.1,
+            "class_weight": null,
+            "gamma": 0.05
+        },
+        "CV Best Recall": 0.9775193798449612,
+        "Accuracy": 0.5044444444444445,
+        "Balanced Accuracy": 0.5,
+        "Sensitivity": 1.0,
+        "Specificity": 0.0,
+        "Precision": 0.5044444444444445,
+        "F1-Score": 0.670605612998523,
+        "ROC-AUC": 0.48942138638114613,
+        "Confusion Matrix": {
+            "True Negative": 0,
+            "False Positive": 223,
+            "False Negative": 0,
+            "True Positive": 227
+        },
+        "Missed Cancers (FN)": 0,
+        "Correct Detections (TP)": 227
+    }
+]

@@ -1,0 +1,84 @@
+[
+    {
+        "Model Name": "Linear SVM (4 Feats)",
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Best Parameters": {
+            "C": 0.1,
+            "class_weight": null
+        },
+        "CV Balanced Accuracy": 0.5215878089708351,
+        "Accuracy": 0.5088888888888888,
+        "Balanced Accuracy": 0.5087908180399439,
+        "Sensitivity": 0.5198237885462555,
+        "Specificity": 0.4977578475336323,
+        "Precision": 0.5130434782608696,
+        "F1-Score": 0.5164113785557987,
+        "ROC-AUC": 0.5243871120681141,
+        "Confusion Matrix": {
+            "True Negative": 111,
+            "False Positive": 112,
+            "False Negative": 109,
+            "True Positive": 118
+        }
+    },
+    {
+        "Model Name": "RBF SVM (4 Feats)",
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Best Parameters": {
+            "C": 1.0,
+            "class_weight": null,
+            "gamma": 0.1
+        },
+        "CV Balanced Accuracy": 0.5167760482617335,
+        "Accuracy": 0.5088888888888888,
+        "Balanced Accuracy": 0.5087908180399439,
+        "Sensitivity": 0.5198237885462555,
+        "Specificity": 0.4977578475336323,
+        "Precision": 0.5130434782608696,
+        "F1-Score": 0.5164113785557987,
+        "ROC-AUC": 0.5280812311096185,
+        "Confusion Matrix": {
+            "True Negative": 111,
+            "False Positive": 112,
+            "False Negative": 109,
+            "True Positive": 118
+        }
+    },
+    {
+        "Model Name": "Logistic Regression (4 Feats)",
+        "Features Used": [
+            "WHEEZING",
+            "YELLOW_FINGERS",
+            "AGE",
+            "SHORTNESS_OF_BREATH"
+        ],
+        "Best Parameters": {
+            "C": 0.01,
+            "class_weight": "balanced"
+        },
+        "CV Balanced Accuracy": 0.5236183358114239,
+        "Accuracy": 0.5088888888888888,
+        "Balanced Accuracy": 0.5087908180399439,
+        "Sensitivity": 0.5198237885462555,
+        "Specificity": 0.4977578475336323,
+        "Precision": 0.5130434782608696,
+        "F1-Score": 0.5164113785557987,
+        "ROC-AUC": 0.5255328816103988,
+        "Confusion Matrix": {
+            "True Negative": 111,
+            "False Positive": 112,
+            "False Negative": 109,
+            "True Positive": 118
+        }
+    }
+]
