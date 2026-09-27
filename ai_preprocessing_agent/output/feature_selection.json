@@ -1,0 +1,96 @@
+{
+  "status": "success",
+  "method": "mutual_info",
+  "target_feature_count": 4,
+  "input_feature_count": 16,
+  "selected_feature_count": 4,
+  "selected_features": [
+    "ALCOHOL_CONSUMING",
+    "PEER_PRESSURE",
+    "SWALLOWING_DIFFICULTY",
+    "FATIGUE"
+  ],
+  "ranking": [
+    {
+      "feature_name": "ALCOHOL_CONSUMING",
+      "score": 1.0,
+      "rank": 1
+    },
+    {
+      "feature_name": "PEER_PRESSURE",
+      "score": 0.5525,
+      "rank": 2
+    },
+    {
+      "feature_name": "SWALLOWING_DIFFICULTY",
+      "score": 0.492,
+      "rank": 3
+    },
+    {
+      "feature_name": "FATIGUE",
+      "score": 0.4356,
+      "rank": 4
+    },
+    {
+      "feature_name": "GENDER_M",
+      "score": 0.3718,
+      "rank": 5
+    },
+    {
+      "feature_name": "CHRONIC_DISEASE",
+      "score": 0.1856,
+      "rank": 6
+    },
+    {
+      "feature_name": "SMOKING",
+      "score": 0.1697,
+      "rank": 7
+    },
+    {
+      "feature_name": "SHORTNESS_OF_BREATH",
+      "score": 0.1134,
+      "rank": 8
+    },
+    {
+      "feature_name": "ALLERGY",
+      "score": 0.0746,
+      "rank": 9
+    },
+    {
+      "feature_name": "AGE",
+      "score": 0.0,
+      "rank": 10
+    },
+    {
+      "feature_name": "YELLOW_FINGERS",
+      "score": 0.0,
+      "rank": 11
+    },
+    {
+      "feature_name": "ANXIETY",
+      "score": 0.0,
+      "rank": 12
+    },
+    {
+      "feature_name": "WHEEZING",
+      "score": 0.0,
+      "rank": 13
+    },
+    {
+      "feature_name": "COUGHING",
+      "score": 0.0,
+      "rank": 14
+    },
+    {
+      "feature_name": "CHEST_PAIN",
+      "score": 0.0,
+      "rank": 15
+    },
+    {
+      "feature_name": "GENDER_F",
+      "score": 0.0,
+      "rank": 16
+    }
+  ],
+  "fitted_on": "train"
+}

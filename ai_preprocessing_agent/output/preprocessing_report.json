@@ -1,0 +1,520 @@
+{
+  "dataset_analysis": {
+    "row_count": 3000,
+    "column_count": 16,
+    "column_names": [
+      "GENDER",
+      "AGE",
+      "SMOKING",
+      "YELLOW_FINGERS",
+      "ANXIETY",
+      "PEER_PRESSURE",
+      "CHRONIC_DISEASE",
+      "FATIGUE",
+      "ALLERGY",
+      "WHEEZING",
+      "ALCOHOL_CONSUMING",
+      "COUGHING",
+      "SHORTNESS_OF_BREATH",
+      "SWALLOWING_DIFFICULTY",
+      "CHEST_PAIN",
+      "LUNG_CANCER"
+    ],
+    "numerical_features": [
+      "AGE"
+    ],
+    "categorical_features": [
+      "GENDER",
+      "SMOKING",
+      "YELLOW_FINGERS",
+      "ANXIETY",
+      "PEER_PRESSURE",
+      "CHRONIC_DISEASE",
+      "FATIGUE",
+      "ALLERGY",
+      "WHEEZING",
+      "ALCOHOL_CONSUMING",
+      "COUGHING",
+      "SHORTNESS_OF_BREATH",
+      "SWALLOWING_DIFFICULTY",
+      "CHEST_PAIN",
+      "LUNG_CANCER"
+    ],
+    "boolean_features": [],
+    "identifier_columns": [],
+    "constant_columns": [],
+    "near_constant_columns": [],
+    "missing_values": {},
+    "duplicate_rows": 2,
+    "columns_profile": {
+      "GENDER": {
+        "name": "GENDER",
+        "dtype": "str",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "M",
+          "F"
+        ],
+        "stats": {
+          "mode": "M",
+          "top_frequencies": {
+            "M": 1514,
+            "F": 1486
+          }
+        }
+      },
+      "AGE": {
+        "name": "AGE",
+        "dtype": "int64",
+        "inferred_type": "numerical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 51,
+        "unique_ratio": 0.017,
+        "sample_values": [
+          "65",
+          "55",
+          "78",
+          "60",
+          "80"
+        ],
+        "stats": {
+          "min": 30.0,
+          "max": 80.0,
+          "mean": 55.169,
+          "median": 55.0,
+          "std": 14.724
+        }
+      },
+      "SMOKING": {
+        "name": "SMOKING",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "1",
+          "2"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1527,
+            "2": 1473
+          }
+        }
+      },
+      "YELLOW_FINGERS": {
+        "name": "YELLOW_FINGERS",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "1",
+          "2"
+        ],
+        "stats": {
+          "mode": "2",
+          "top_frequencies": {
+            "2": 1542,
+            "1": 1458
+          }
+        }
+      },
+      "ANXIETY": {
+        "name": "ANXIETY",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "1",
+          "2"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1518,
+            "2": 1482
+          }
+        }
+      },
+      "PEER_PRESSURE": {
+        "name": "PEER_PRESSURE",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "2",
+          "1"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1503,
+            "2": 1497
+          }
+        }
+      },
+      "CHRONIC_DISEASE": {
+        "name": "CHRONIC_DISEASE",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "2",
+          "1"
+        ],
+        "stats": {
+          "mode": "2",
+          "top_frequencies": {
+            "2": 1529,
+            "1": 1471
+          }
+        }
+      },
+      "FATIGUE": {
+        "name": "FATIGUE",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "1",
+          "2"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1531,
+            "2": 1469
+          }
+        }
+      },
+      "ALLERGY": {
+        "name": "ALLERGY",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "2",
+          "1"
+        ],
+        "stats": {
+          "mode": "2",
+          "top_frequencies": {
+            "2": 1520,
+            "1": 1480
+          }
+        }
+      },
+      "WHEEZING": {
+        "name": "WHEEZING",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "2",
+          "1"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1508,
+            "2": 1492
+          }
+        }
+      },
+      "ALCOHOL_CONSUMING": {
+        "name": "ALCOHOL_CONSUMING",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "2",
+          "1"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1526,
+            "2": 1474
+          }
+        }
+      },
+      "COUGHING": {
+        "name": "COUGHING",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "2",
+          "1"
+        ],
+        "stats": {
+          "mode": "2",
+          "top_frequencies": {
+            "2": 1532,
+            "1": 1468
+          }
+        }
+      },
+      "SHORTNESS_OF_BREATH": {
+        "name": "SHORTNESS_OF_BREATH",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "2",
+          "1"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1536,
+            "2": 1464
+          }
+        }
+      },
+      "SWALLOWING_DIFFICULTY": {
+        "name": "SWALLOWING_DIFFICULTY",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "2",
+          "1"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1531,
+            "2": 1469
+          }
+        }
+      },
+      "CHEST_PAIN": {
+        "name": "CHEST_PAIN",
+        "dtype": "int64",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "1",
+          "2"
+        ],
+        "stats": {
+          "mode": "1",
+          "top_frequencies": {
+            "1": 1504,
+            "2": 1496
+          }
+        }
+      },
+      "LUNG_CANCER": {
+        "name": "LUNG_CANCER",
+        "dtype": "str",
+        "inferred_type": "categorical",
+        "total_count": 3000,
+        "missing_count": 0,
+        "missing_ratio": 0.0,
+        "unique_count": 2,
+        "unique_ratio": 0.0007,
+        "sample_values": [
+          "NO",
+          "YES"
+        ],
+        "stats": {
+          "mode": "YES",
+          "top_frequencies": {
+            "YES": 1518,
+            "NO": 1482
+          }
+        }
+      }
+    },
+    "candidate_targets": [
+      {
+        "column_name": "LUNG_CANCER",
+        "confidence": 0.95,
+        "task_type": "binary_classification",
+        "rationale": "Explicitly matches configured target hint 'LUNG_CANCER'.",
+        "classes": [
+          "NO",
+          "YES"
+        ],
+        "class_counts": {
+          "YES": 1518,
+          "NO": 1482
+        }
+      },
+      {
+        "column_name": "CHRONIC_DISEASE",
+        "confidence": 0.6,
+        "task_type": "binary_classification",
+        "rationale": "Column name contains target keyword 'disease'. Binary cardinality (2 distinct values).",
+        "classes": [
+          "2",
+          "1"
+        ],
+        "class_counts": {
+          "2": 1529,
+          "1": 1471
+        }
+      }
+    ],
+    "detected_target": "LUNG_CANCER",
+    "detected_task": "binary_classification"
+  },
+  "quality_report": {
+    "status": "success",
+    "missing_value_summary": {
+      "status": "success",
+      "total_missing": 0,
+      "affected_columns": [],
+      "missing_counts": {},
+      "has_missing": false
+    },
+    "duplicate_summary": {
+      "status": "success",
+      "duplicate_count": 2,
+      "duplicate_ratio": 0.0007,
+      "has_duplicates": true
+    },
+    "invalid_value_summary": {
+      "status": "success",
+      "infinite_values": {},
+      "string_token_nulls": {},
+      "has_invalid_values": false
+    },
+    "inconsistent_categories_summary": {
+      "status": "success",
+      "inconsistent_columns": {},
+      "has_inconsistencies": false
+    },
+    "outlier_summary": {
+      "status": "success",
+      "outlier_counts": {},
+      "has_outliers": false
+    },
+    "constant_feature_summary": {
+      "status": "success",
+      "constant_columns": [],
+      "has_constants": false
+    },
+    "high_correlation_pairs": [],
+    "class_imbalance_summary": {
+      "status": "success",
+      "target_column": "LUNG_CANCER",
+      "class_counts": {
+        "YES": 1518,
+        "NO": 1482
+      },
+      "class_ratios": {
+        "YES": 0.506,
+        "NO": 0.494
+      },
+      "is_imbalanced": false,
+      "minority_ratio": 0.494
+    },
+    "target_leakage_risk": [],
+    "findings": [
+      {
+        "severity": "info",
+        "category": "duplicates",
+        "affected_columns": [],
+        "description": "Found 2 exact duplicate rows (0.1%).",
+        "recommended_action": "Remove duplicate rows to prevent bias and train/test leakage."
+      }
+    ],
+    "warnings": []
+  },
+  "validation": {
+    "status": "passed",
+    "passed": true,
+    "errors": [],
+    "warnings": [
+      {
+        "code": "WARN_TRAIN_TEST_EXACT_MATCH",
+        "stage": "data_leakage",
+        "message": "Found 59124 identical feature rows between train and test (common in discrete survey data)."
+      }
+    ],
+    "checks": {
+      "no_missing_values": true,
+      "all_numeric_features": true,
+      "target_excluded_from_features": true,
+      "feature_count_matches_target": true,
+      "column_alignment": true,
+      "finite_values": true
+    },
+    "leakage_detected": false,
+    "train_shape": [
+      2098,
+      4
+    ],
+    "val_shape": [
+      450,
+      4
+    ],
+    "test_shape": [
+      450,
+      4
+    ],
+    "feature_count": 4
+  }
+}

@@ -1,0 +1,42 @@
+dataset:
+  format: csv
+  path: null
+
+task:
+  type: auto
+  target_column: null
+
+preprocessing:
+  missing_values: auto
+  duplicates: auto
+  categorical_cleaning: auto
+  categorical_encoding: auto
+  scaling: auto
+  outliers: auto
+
+feature_engineering:
+  enabled: true
+  allow_domain_neutral_interactions: false
+
+feature_selection:
+  enabled: true
+  method: auto
+  target_feature_count: 4
+
+dimensionality_reduction:
+  enabled: auto
+  method: pca
+  n_components: null
+
+split:
+  train: 0.70
+  validation: 0.15
+  test: 0.15
+  random_state: 42
+  stratify: true
+
+agent:
+  mode: approval
+
+validation:
+  max_retries: 3

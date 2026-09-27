@@ -1,0 +1,42 @@
+dataset:
+  format: csv
+  path: "data/input/lung_cancer.csv"
+
+task:
+  type: classification
+  target_column: "LUNG_CANCER"
+
+preprocessing:
+  missing_values: "median"
+  duplicates: "remove"
+  categorical_cleaning: "normalize"
+  categorical_encoding: "one_hot"
+  scaling: "minmax"
+  outliers: "retain"
+
+feature_engineering:
+  enabled: false
+  allow_domain_neutral_interactions: false
+
+feature_selection:
+  enabled: true
+  method: "mutual_info"
+  target_feature_count: 4
+
+dimensionality_reduction:
+  enabled: false
+  method: "pca"
+  n_components: 4
+
+split:
+  train: 0.70
+  validation: 0.15
+  test: 0.15
+  random_state: 42
+  stratify: true
+
+agent:
+  mode: "auto"
+
+validation:
+  max_retries: 3
