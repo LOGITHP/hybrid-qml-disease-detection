@@ -1,0 +1,82 @@
+"""FastAPI application entrypoint for the Hybrid QML Platform."""
+
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from app.api.v1.router import api_v1_router
+from app.core.config import settings
+from app.core.exceptions import AppException
+from app.core.logging import logger, setup_logging
+from app.database.session import engine
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan context for startup and shutdown procedures."""
+    setup_logging()
+    logger.info(
+        f"Starting {settings.PROJECT_NAME} [Environment: {settings.ENVIRONMENT}] [Version: {settings.VERSION}]"
+    )
+    yield
+    logger.info("Shutting down application and disposing database engine.")
+    await engine.dispose()
+
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
+    description=(
+        "Hybrid Quantum Machine Learning Platform for Early Disease Detection: "
+        "Production-grade backend integrating Classical Support Vector Machines (SVM), "
+        "Variational Quantum Classifiers (VQC), PennyLane NISQ simulation, and AI-assisted data engineering."
+    ),
+    openapi_url="/api/v1/openapi.json",
+    docs_url="/api/v1/docs",
+    redoc_url="/api/v1/redoc",
+    lifespan=lifespan,
+)
+
+# Configure Cross-Origin Resource Sharing (CORS)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    """Centralized application exception handler returning standardized error payload."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details,
+            }
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all exception handler preventing stack traces and internal secrets from leaking."""
+    logger.error(f"Unhandled system exception: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected internal server error occurred. Please contact the platform administrator.",
+                "details": {},
+            }
+        },
+    )
+
+
+# Mount main API v1 router
+app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
