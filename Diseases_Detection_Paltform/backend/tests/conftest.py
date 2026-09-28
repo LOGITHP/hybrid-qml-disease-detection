@@ -6,59 +6,46 @@ from typing import AsyncGenerator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from mongomock_motor import AsyncMongoMockClient
 
 # Set testing environment variables before importing app
 os.environ["ENVIRONMENT"] = "testing"
 os.environ["LOG_LEVEL"] = "WARNING"
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["MONGODB_URL"] = "mongodb://localhost:27017"
+os.environ["MONGODB_DB"] = "test_db"
 os.environ["JWT_SECRET"] = "test_super_secret_key_at_least_32_bytes_long_12345!"
 os.environ["ARTIFACT_ROOT"] = "./test_artifacts"
 
-from app.core.config import settings
-from app.database.base import Base
-from app.database.session import get_db
+import app.database.session as session_mod
+from beanie import init_beanie
+from app.database.models import __all__ as all_models_names
+import importlib
 from app.main import app
 
-# Test engine using in-memory SQLite with async driver
-test_engine = create_async_engine(
-    "sqlite+aiosqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-)
-
-TestSessionLocal = async_sessionmaker(
-    bind=test_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
-
-
-@pytest_asyncio.fixture(scope="function")
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Provide a clean isolated transactional database session for each test."""
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async with TestSessionLocal() as session:
-        yield session
-        await session.rollback()
-
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def setup_beanie():
+    """Mock MongoDB Client using mongomock-motor for isolated tests."""
+    mock_client = AsyncMongoMockClient()
+    db = mock_client[os.environ["MONGODB_DB"]]
+    
+    # Override global client in session so application uses mock
+    session_mod.client = mock_client
+    
+    # Init beanie
+    models_module = importlib.import_module("app.database.models")
+    document_models = [getattr(models_module, model_name) for model_name in all_models_names]
+    await init_beanie(database=db, document_models=document_models)
+    
+    yield
+    
+    # Teardown database collections
+    for coll_name in await db.list_collection_names():
+        await db[coll_name].drop()
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """Test HTTP client with overridden database dependency."""
-    async def override_get_db():
-        yield db_session
-
-    app.dependency_overrides[get_db] = override_get_db
-
+async def client() -> AsyncGenerator[AsyncClient, None]:
+    """Test HTTP client."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-
-    app.dependency_overrides.clear()

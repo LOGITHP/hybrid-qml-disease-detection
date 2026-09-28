@@ -2,11 +2,9 @@
 
 from typing import Annotated, Callable
 from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthenticationError, PermissionDeniedError
 from app.core.security import decode_token
 from app.database.models.user import User
-from app.database.session import get_db
 from app.repositories.dataset_repository import DatasetRepository
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.model_repository import ModelRepository
@@ -22,7 +20,6 @@ from app.services.user_service import UserService
 
 async def get_current_user(
     authorization: Annotated[str, Header()] = "",
-    db: AsyncSession = Depends(get_db),
 ) -> User:
     """Dependency extracting and validating the Bearer access token."""
     if not authorization or not authorization.startswith("Bearer "):
@@ -34,7 +31,7 @@ async def get_current_user(
     if not user_id:
         raise AuthenticationError("Token payload missing subject identifier.")
 
-    user_repo = UserRepository(db)
+    user_repo = UserRepository()
     user = await user_repo.get_by_id(user_id)
     if not user:
         raise AuthenticationError("Authenticated user no longer exists.")
@@ -58,34 +55,34 @@ def require_role(required_role: str) -> Callable:
 
 
 # Service factories for dependency injection
-def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
-    return AuthService(UserRepository(db))
+def get_auth_service() -> AuthService:
+    return AuthService(UserRepository())
 
 
-def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
-    return UserService(UserRepository(db))
+def get_user_service() -> UserService:
+    return UserService(UserRepository())
 
 
-def get_dataset_service(db: AsyncSession = Depends(get_db)) -> DatasetService:
-    return DatasetService(DatasetRepository(db))
+def get_dataset_service() -> DatasetService:
+    return DatasetService(DatasetRepository())
 
 
-def get_model_service(db: AsyncSession = Depends(get_db)) -> ModelService:
-    return ModelService(ModelRepository(db))
+def get_model_service() -> ModelService:
+    return ModelService(ModelRepository())
 
 
-def get_training_service(db: AsyncSession = Depends(get_db)) -> TrainingService:
+def get_training_service() -> TrainingService:
     return TrainingService(
-        training_repo=TrainingRepository(db),
-        model_repo=ModelRepository(db),
-        dataset_repo=DatasetRepository(db),
+        training_repo=TrainingRepository(),
+        model_repo=ModelRepository(),
+        dataset_repo=DatasetRepository(),
     )
 
 
-def get_experiment_service(db: AsyncSession = Depends(get_db)) -> ExperimentService:
+def get_experiment_service() -> ExperimentService:
     return ExperimentService(
-        experiment_repo=ExperimentRepository(db),
-        training_repo=TrainingRepository(db),
-        model_repo=ModelRepository(db),
-        dataset_repo=DatasetRepository(db),
+        experiment_repo=ExperimentRepository(),
+        training_repo=TrainingRepository(),
+        model_repo=ModelRepository(),
+        dataset_repo=DatasetRepository(),
     )

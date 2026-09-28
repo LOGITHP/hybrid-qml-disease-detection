@@ -2,7 +2,8 @@
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, BeforeValidator
+from typing_extensions import Annotated
 
 
 class UserRegisterRequest(BaseModel):
@@ -18,12 +19,7 @@ class UserLoginRequest(BaseModel):
     password: str
 
 
-class TokenResponse(BaseModel):
-    """Bearer token pair response."""
-    access_token: str
-    refresh_token: str
-    token_type: str = "Bearer"
-    expires_in: int
+
 
 
 class RefreshTokenRequest(BaseModel):
@@ -33,7 +29,7 @@ class RefreshTokenRequest(BaseModel):
 
 class UserProfileResponse(BaseModel):
     """Authenticated user profile representation."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     email: EmailStr
     full_name: Optional[str] = None
     role: str
@@ -43,3 +39,12 @@ class UserProfileResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TokenResponse(BaseModel):
+    """Bearer token pair response."""
+    access_token: str
+    refresh_token: str
+    token_type: str = "Bearer"
+    expires_in: int
+    user: UserProfileResponse

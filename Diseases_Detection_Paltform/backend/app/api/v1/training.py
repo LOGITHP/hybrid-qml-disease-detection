@@ -18,7 +18,7 @@ async def start_training_run(
 ):
     """Execute model training (SVM Linear, SVM RBF, or PennyLane VQC)."""
     run = await service.execute_training_run(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         model_id=payload.model_id,
         dataset_version_id=payload.dataset_version_id,
         feature_selection_run_id=payload.feature_selection_run_id,
@@ -36,5 +36,8 @@ async def get_training_status(
     service: TrainingService = Depends(get_training_service),
 ):
     """Retrieve training execution record and performance metrics."""
-    run = await service.training_repo.get_training_run(run_id, user_id=current_user.id)
+    run = await service.training_repo.get_by_id(run_id)
+    if not run or (run.user_id != str(current_user.id) and current_user.role != "admin"):
+        from app.core.exceptions import ResourceNotFoundError
+        raise ResourceNotFoundError("TrainingRun", run_id)
     return TrainingRunResponse.model_validate(run)

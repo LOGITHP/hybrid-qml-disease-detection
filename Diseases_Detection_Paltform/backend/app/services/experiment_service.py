@@ -41,7 +41,7 @@ class ExperimentService:
         """Aggregate CML and QML training runs into an end-to-end comparative benchmark and Markdown report."""
         runs_data = []
         for run_id in training_run_ids:
-            run = await self.training_repo.get_training_run(run_id)
+            run = await self.training_repo.get_by_id(run_id)
             if run and run.metrics:
                 model = await self.model_repo.get_by_id(run.model_id)
                 model_name = model.name if model else "Unknown"

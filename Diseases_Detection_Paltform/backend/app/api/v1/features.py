@@ -19,7 +19,7 @@ async def select_features(
     """Execute canonical feature selection (Single Source of Truth for SVM and VQC models)."""
     fs_run = await service.execute_feature_selection(
         dataset_version_id=payload.dataset_version_id,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         target_column="LUNG_CANCER",  # Default disease target
         ranking_method=payload.ranking_method,
         k_features=payload.k_features or 4,

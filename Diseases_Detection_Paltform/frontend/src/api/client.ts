@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import axios, { AxiosError } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
@@ -34,11 +35,19 @@ apiClient.interceptors.response.use(
       }
     }
 
-    const errorMessage =
-      error.response?.data?.detail ||
-      error.response?.data?.message ||
-      error.message ||
-      'An unexpected network error occurred. Please verify backend connectivity.';
+    let errorMessage = 'An unexpected network error occurred. Please verify backend connectivity.';
+    
+    if (error.response?.data?.detail) {
+      if (Array.isArray(error.response.data.detail)) {
+        errorMessage = error.response.data.detail.map((err: any) => `${err.loc?.join('.')} ${err.msg}`).join(', ');
+      } else if (typeof error.response.data.detail === 'string') {
+        errorMessage = error.response.data.detail;
+      }
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
 
     return Promise.reject(new Error(errorMessage));
   }

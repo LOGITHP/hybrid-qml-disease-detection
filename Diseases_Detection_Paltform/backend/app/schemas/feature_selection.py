@@ -1,8 +1,9 @@
+from typing_extensions import Annotated
 """Feature selection and ranking schemas - Single Source of Truth for Models."""
 
 from datetime import datetime
 from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BeforeValidator, BaseModel, Field
 
 
 class FeatureRankingRequest(BaseModel):
@@ -23,7 +24,7 @@ class FeatureSelectionRequest(BaseModel):
 
 class FeatureSelectionResponse(BaseModel):
     """Canonical feature selection record consumed by SVM and VQC models."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     dataset_version_id: str
     user_id: str
     preprocessing_run_id: Optional[str] = None

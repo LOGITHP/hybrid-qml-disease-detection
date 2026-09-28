@@ -1,8 +1,9 @@
+from typing_extensions import Annotated
 """Inference prediction and disease risk stratification schemas."""
 
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BeforeValidator, BaseModel, Field
 
 
 class RiskStratification(BaseModel):
@@ -19,7 +20,7 @@ class RiskStratification(BaseModel):
 
 class PredictionRequest(BaseModel):
     """Payload for real-time model inference."""
-    model_version_id: str
+    model_id: str
     features: Union[Dict[str, float], List[Dict[str, float]]] = Field(
         ...,
         description="Patient biomarker readings mapped by feature name, or list of patients."
@@ -39,7 +40,7 @@ class SinglePredictionResult(BaseModel):
 
 class PredictionResponse(BaseModel):
     """Complete prediction inference response."""
-    model_version_id: str
+    model_id: str
     preprocessing_run_id: Optional[str] = None
     feature_selection_run_id: Optional[str] = None
     decision_threshold_applied: float

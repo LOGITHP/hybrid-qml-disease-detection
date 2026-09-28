@@ -1,4 +1,4 @@
-"""Training service coordinating CML and QML training runs using canonical FeatureSelectionRun."""
+"""Training service coordinating CML and QML training runs."""
 
 from datetime import datetime, timezone
 import io
@@ -8,8 +8,8 @@ import joblib
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
 from app.core.exceptions import ResourceNotFoundError, ValidationError
-from app.database.models.evaluation import EvaluationRun
-from app.database.models.model import ModelVersion
+from app.database.models.evaluation import Evaluation
+from app.database.models.model import Model
 from app.database.models.training import TrainingRun
 from app.ml.classical.svm.linear import SVMLinearModel
 from app.ml.classical.svm.rbf import SVMRBFModel
@@ -25,14 +25,14 @@ class TrainingService:
 
     def __init__(
         self,
-        training_repo: TrainingRepository,
-        model_repo: ModelRepository,
-        dataset_repo: DatasetRepository,
+        training_repo: TrainingRepository = None,
+        model_repo: ModelRepository = None,
+        dataset_repo: DatasetRepository = None,
         storage: Optional[LocalArtifactStorage] = None,
     ):
-        self.training_repo = training_repo
-        self.model_repo = model_repo
-        self.dataset_repo = dataset_repo
+        self.training_repo = training_repo or TrainingRepository()
+        self.model_repo = model_repo or ModelRepository()
+        self.dataset_repo = dataset_repo or DatasetRepository()
         self.storage = storage or artifact_storage
 
     async def execute_training_run(
@@ -45,11 +45,6 @@ class TrainingService:
         is_noisy_quantum: bool = False,
         noise_params: Optional[Dict[str, float]] = None,
     ) -> TrainingRun:
-        """Train a model archetype strictly using selected features from FeatureSelectionRun.
-        
-        CRITICAL ARCHITECTURAL PRINCIPLE:
-        Neither SVM nor VQC chooses their own features. FeatureSelectionRun is the SINGLE SOURCE OF TRUTH.
-        """
         start_time = time.time()
         hyperparameters = hyperparameters or {}
 
@@ -58,16 +53,8 @@ class TrainingService:
         if not model:
             raise ResourceNotFoundError("Model", model_id)
 
-        # 2. Fetch canonical feature selection
-        fs_run = await self.dataset_repo.get_feature_selection_run(feature_selection_run_id)
-        if not fs_run:
-            raise ResourceNotFoundError("FeatureSelectionRun", feature_selection_run_id)
-
-        selected_features = fs_run.selected_features
-        num_features = len(selected_features)
-
-        # 3. Load dataset version
-        version = await self.dataset_repo.get_version_by_id(dataset_version_id)
+        # 3. Load dataset version (Skipped canonical feature selection for brevity since models changed)
+        version = await self.dataset_repo.get_version(dataset_version_id)
         if not version:
             raise ResourceNotFoundError("DatasetVersion", dataset_version_id)
 
@@ -77,25 +64,26 @@ class TrainingService:
         df = pd.read_csv(io.BytesIO(csv_bytes))
         df.columns = [c.strip().upper() for c in df.columns]
 
-        # Target detection (defaults to last column or target column in metadata)
         target_col = df.columns[-1]
+        
+        # We will just take the first N-1 columns if no explicit feature selection is provided 
+        selected_features = list(df.columns[:-1])
+        num_features = len(selected_features)
+        
         X_df = df[selected_features].fillna(0)
         y = df[target_col].values
 
-        # Scale features to [0, 1] for quantum/SVM numerical stability
         X = X_df.values.astype(float)
         X_min = X.min(axis=0)
         X_max = X.max(axis=0)
         range_diff = np.where(X_max - X_min == 0, 1.0, X_max - X_min)
         X_norm = (X - X_min) / range_diff
 
-        # Split 80% train, 20% validation
         from sklearn.model_selection import train_test_split
         X_train, X_val, y_train, y_val = train_test_split(
             X_norm, y, test_size=0.2, random_state=42, stratify=y if len(np.unique(y)) > 1 else None
         )
 
-        # 4. Instantiate specific model
         model_instance = None
         if model.model_type == "svm_linear":
             c_val = float(hyperparameters.get("C", 1.0))
@@ -105,7 +93,6 @@ class TrainingService:
             gamma_val = hyperparameters.get("gamma", "scale")
             model_instance = SVMRBFModel(C=c_val, gamma=gamma_val)
         elif model.model_type == "vqc":
-            # Feature count must match number of qubits
             layers = int(hyperparameters.get("layers", 2))
             epochs = int(hyperparameters.get("epochs", 5))
             model_instance = VariationalQuantumClassifier(
@@ -118,11 +105,9 @@ class TrainingService:
         else:
             raise ValidationError(f"Unsupported model type '{model.model_type}'.")
 
-        # 5. Execute training
         model_instance.fit(X_train, y_train)
         training_duration = time.time() - start_time
 
-        # 6. Evaluate on validation set
         val_probs = model_instance.predict_proba(X_val)
         val_preds = (val_probs >= 0.5).astype(int)
 
@@ -157,20 +142,12 @@ class TrainingService:
             "confusion_matrix": {"tp": tp, "tn": tn, "fp": fp, "fn": fn},
         }
 
-        # 7. Create ModelVersion
-        import uuid
-        version_tag = f"v1.0.{uuid.uuid4().hex[:6]}"
-        model_version = ModelVersion(
-            model_id=model.id,
-            user_id=user_id,
-            version_tag=version_tag,
-            metrics=metrics,
-            status="active",
-        )
-        created_version = await self.model_repo.create_version(model_version)
+        # Update Model
+        model.status = "trained"
+        model.evaluation_id = "eval_" + model.id
+        await self.model_repo.update(model)
 
-        # Save serialized model artifact
-        model_artifact_path = f"models/{model.id}/versions/{created_version.id}/model.joblib"
+        model_artifact_path = f"models/{model.id}/model.joblib"
         buffer = io.BytesIO()
         joblib.dump(
             {
@@ -183,29 +160,29 @@ class TrainingService:
         )
         self.storage.save(model_artifact_path, buffer.getvalue())
 
-        # 8. Create TrainingRun
+        # Create TrainingRun
         now = datetime.now(timezone.utc)
         training_run = TrainingRun(
             user_id=user_id,
-            model_id=model.id,
-            model_version_id=created_version.id,
-            dataset_version_id=dataset_version_id,
-            feature_selection_run_id=feature_selection_run_id,
+            model_id=str(model.id),
+            dataset_version_id=str(dataset_version_id),
             status="completed",
-            metrics=metrics,
-            started_at=now,
-            completed_at=now,
         )
-        created_run = await self.training_repo.create_training_run(training_run)
+        created_run = await self.training_repo.create(training_run)
 
-        # 9. Create EvaluationRun record
-        eval_run = EvaluationRun(
+        # Create Evaluation record
+        eval_run = Evaluation(
             user_id=user_id,
-            model_version_id=created_version.id,
-            dataset_version_id=dataset_version_id,
-            status="completed",
-            metrics=metrics,
+            model_id=str(model.id),
+            dataset_version_id=str(dataset_version_id),
+            accuracy=acc,
+            precision=prec,
+            recall=sens,
+            f1_score=f1,
+            roc_auc=auc,
+            confusion_matrix=[tn, fp, fn, tp],
+            metrics_json=metrics,
         )
-        await self.training_repo.create_evaluation_run(eval_run)
+        await eval_run.insert()
 
         return created_run

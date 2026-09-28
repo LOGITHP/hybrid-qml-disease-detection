@@ -1,204 +1,63 @@
-# Hybrid Quantum Machine Learning Platform for Early Disease Detection — Backend
+# Backend API - Hybrid Quantum Machine Learning Platform
 
-A production-grade, enterprise-ready backend platform designed for hybrid classical-quantum biomedical learning, automated AI data preprocessing, and early disease risk stratification.
+The backend of the Hybrid QML Platform is a high-performance Python application built with **FastAPI**. It handles complex computational workloads including classical data preprocessing, machine learning, quantum circuit simulation (PennyLane), and intelligent agent interaction.
 
----
+## Architecture & Tech Stack
 
-## 1. Project Purpose & SIH Problem Statement Alignment
+- **Framework**: FastAPI (Asynchronous, High Concurrency)
+- **Database**: MongoDB (Beanie ODM) for flexible document storage of models, datasets, and configurations.
+- **Storage Engine**: MinIO (S3-compatible) for storing massive CSV files, serialized ML pipelines, and model weights.
+- **Task Queue**: Celery + Redis for asynchronous background processing (model training, quantum simulation).
+- **Quantum Backend**: PennyLane (`default.qubit`) for Variational Quantum Classifier construction and simulation.
+- **LLM Engine**: Ollama (Local LLM) used dynamically by LangChain agents to suggest data preprocessing steps without sending patient data to cloud providers.
 
-This platform is the official implementation of:
-> **"Hybrid Quantum Machine Learning Platform for Early Disease Detection"**
+## Implementation Details
 
-The objective is to provide a complete pipeline from raw biomedical data ingestion to hybrid quantum classification, delivering:
-1. **Biomedical Data Ingestion & Preprocessing:** Data cleaning, missing value imputation, categorical encoding, and feature scaling.
-2. **AI Preprocessing Agent:** Gemma-powered clinical reasoning proposing deterministic transformation plans with human approval and strict data leakage prevention.
-3. **Canonical Feature Selection (Single Source of Truth):** Feature ranking and selection via mutual information, ANOVA, or tree-based importance that feeds both classical ML and quantum models identically.
-4. **Classical Machine Learning Baselines:** Linear and Radial Basis Function (RBF) Support Vector Classifiers (SVM).
-5. **Hybrid Quantum Machine Learning:** Variational Quantum Classifiers (VQC) with angle encoding and entangling variational ansatzes simulated via PennyLane.
-6. **Hardware & Noise Simulation:** Support for noiseless statevector simulation (`default.qubit`), open quantum system noisy simulation (`default.mixed`), and real physical QPU abstractions.
-7. **Clinical Decision Support & Risk Stratification:** Risk levels (`LOW`, `MEDIUM`, `HIGH`) calibrated with configurable decision thresholds and diagnostic safety disclaimers.
-8. **Reproducibility & Provenance:** Every trained model is linked to its exact dataset version, preprocessing pipeline, feature selection run, and training configuration.
+The backend adheres to a strict Service-Oriented Architecture (SOA):
 
----
+1. **API Layer (`app/api/`)**: Defines REST endpoints, handles HTTP requests/responses, and enforces Pydantic schema validation.
+2. **Service Layer (`app/services/`)**: Contains the core business logic. API routes inject these services via FastAPI Dependencies.
+3. **Repository Layer (`app/repositories/`)**: Abstracts database queries. Directly interfaces with the Beanie ODM to isolate MongoDB logic.
+4. **Machine Learning (`app/ml/` & `app/quantum/`)**: Pure Python modules wrapping Scikit-Learn and PennyLane logic to ensure models remain decoupled from the web framework.
 
-## 2. End-to-End System Architecture
+### Step-by-Step Execution Flow
 
-```mermaid
-graph TD
-    User([User / Client]) -->|JWT Auth| API[FastAPI Gateway /api/v1]
-    
-    subgraph "Application Layer"
-        API --> AuthService[Auth Service]
-        API --> DatasetService[Dataset & Feature Service]
-        API --> ModelService[Model Registry Service]
-        API --> TrainingService[Training Orchestration Service]
-        API --> PredictionService[Prediction & Risk Service]
-        API --> ExpService[Experiment & Benchmark Service]
-    end
+1. **Dataset Upload**: The user uploads a CSV. The API streams it directly to MinIO, and a `DatasetVersion` document is saved in MongoDB.
+2. **Preprocessing**: The `PreprocessingService` queries Ollama to analyze dataset headers and suggest Imputation (Mean/Median) and Scaling (Standard/MinMax). The dataset is processed using Scikit-Learn pipelines, and the transformer artifacts are saved to MinIO.
+3. **Quantum Model Configuration**: The user configures a VQC model (number of qubits, ansatz type).
+4. **Training**: A Celery worker picks up the training job. It pulls the processed dataset from MinIO, constructs a PennyLane quantum circuit, and trains it using an optimizer (e.g., Adam/Adagrad). Training history is streamed back to MongoDB.
+5. **Evaluation & Prediction**: The trained model generates predictions and Explainable AI (XAI) metrics, storing results as an `Evaluation` document.
 
-    subgraph "AI Preprocessing Agent"
-        DatasetService --> Agent[Preprocessing Agent]
-        Agent -->|Privacy Profile| Gemma[Dedicated Gemma Container :8001]
-        Agent -->|Deterministic Plan| SklearnPipe[Scikit-learn Imputer & Scaler]
-    end
+## Configuration (.env)
 
-    subgraph "Single Source of Truth"
-        SklearnPipe --> FS[FeatureSelectionRun: selected_features]
-    end
+When running locally without Docker, you must configure a `.env` file in the `backend/` directory:
 
-    subgraph "Model Engines"
-        FS -->|4, 6, 8 Features| CML[SVM Linear / RBF]
-        FS -->|Angle Encoding| VQC[PennyLane VQC Circuit]
-        VQC --> Sim[Noiseless default.qubit]
-        VQC --> NoisySim[Noisy default.mixed]
-        VQC --> QPU[Physical QPU Abstraction]
-    end
-
-    subgraph "Evaluation & Benchmarks"
-        CML --> Eval[Metrics: Acc, Sens, Spec, Prec, F1, AUC]
-        VQC --> Eval
-        Eval --> Compare[CML vs QML Benchmark Report]
-    end
-
-    subgraph "Storage Layer"
-        AuthService & DatasetService & TrainingService --> Postgres[(PostgreSQL 16)]
-        TrainingService & Compare --> Artifacts[Local / S3 Storage: artifacts/]
-    end
+```env
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+HOST=0.0.0.0
+PORT=8000
+MONGODB_URL=mongodb://localhost:27017
+MONGODB_DB=hybrid_qml_db
+REDIS_URL=redis://localhost:6379/0
+MINIO_URL=http://localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+JWT_SECRET=your_super_secret_key
+LLM_PROVIDER=ollama
+LLM_BASE_URL=http://localhost:11434
 ```
 
----
+## How to Run (With Docker)
 
-## 3. Technology Stack
+The backend is configured to be orchestrated entirely by Docker Compose from the root directory.
 
-- **Framework:** Python 3.11+, FastAPI, Uvicorn, Pydantic v2
-- **Database & Migrations:** PostgreSQL 16, SQLAlchemy 2.0 (AsyncIO), Alembic
-- **Security:** Argon2id (`argon2-cffi`), PyJWT (`pyjwt`)
-- **Scientific Computing:** NumPy, Pandas, SciPy, scikit-learn, joblib
-- **Quantum Computing:** PennyLane 0.36+
-- **AI Agent & LLM:** LangGraph, LangChain, Dedicated Containerized Gemma Microservice
-- **Background Tasks & Caching:** Redis 7, Celery 5.4+
-- **Infrastructure:** Docker, Docker Compose
-
----
-
-## 4. Existing Repository Integration Notes
-
-The existing repository contained experimental research notebooks and training scripts in `Experimental_ML/` and `ai_preprocessing_agent/`. These research assets remain completely intact and outside the `backend/` folder:
-
-| Existing Asset | Path | Integration & Reusability in Backend |
-| :--- | :--- | :--- |
-| **Noiseless VQC Training** | `Experimental_ML/Lung_Cancer/HQML/4-feature-VQC/code/train_vqc.py` | Wrapped inside `backend/app/ml/quantum/vqc/circuit.py` and `model.py`. Uses identical angle encoding ($RY(x_i \cdot \pi)$), 2 variational layers with linear CNOT entanglement, and Pauli-Z expectation pooling. |
-| **Noisy NISQ VQC Training** | `Experimental_ML/Lung_Cancer/HQML/4-feature-VQC-Noisy/code/train_vqc_noisy.py` | Implemented in `backend/app/ml/quantum/vqc/noisy.py` with `default.mixed`, `DepolarizingChannel`, and `BitFlip`. |
-| **Classical ML Benchmarks** | `Experimental_ML/Lung_Cancer/CML/4-feature/code/train_classical.py` | Wrapped inside `backend/app/ml/classical/svm/linear.py` and `rbf.py`. Evaluates identical metrics ($TP, TN, FP, FN$, Sensitivity, Specificity, ROC-AUC). |
-| **Processed Datasets** | `Experimental_ML/Lung_Cancer/data/processed/` | Provides benchmark baseline datasets (`X_train_4.csv`, `selected_features.json`). |
-| **AI Preprocessing Agent** | `ai_preprocessing_agent/` | Core architecture adapted into `backend/app/agents/preprocessing_agent/interface.py`. |
-
----
-
-## 5. Storage Architecture
-
-```
-backend/
-├── artifacts/
-│   ├── datasets/<dataset_id>/versions/<version_id>/original.csv
-│   ├── preprocessing/<run_id>/fitted_pipeline.joblib
-│   ├── models/<model_id>/versions/<version_id>/model.joblib
-│   ├── evaluations/<evaluation_id>/metrics.json
-│   ├── experiments/<experiment_id>/benchmark_report.md
-│   └── reports/
-```
-
-- **Original Datasets:** Stored immutably. Never overwritten.
-- **Fitted Pipelines:** Serialized joblib binaries containing imputer and scaler parameters fitted strictly on training data.
-- **Trained Model Artifacts:** Serialized models, feature boundaries, and canonical feature names.
-
----
-
-## 6. Single Source of Truth for Feature Selection
-
-In this platform, **feature count is NOT an independent model parameter**.
-1. Feature ranking is performed across normalized data via Mutual Information, ANOVA F-test, or Random Forest importance.
-2. A `FeatureSelectionRun` record is created containing the canonical list:
-   ```json
-   ["WHEEZING", "YELLOW_FINGERS", "AGE", "SHORTNESS_OF_BREATH"]
-   ```
-3. **Both SVM and VQC consume this exact feature set**. This guarantees fair, reproducible CML vs QML benchmarking.
-
----
-
-## 7. Pre-Trained Models Available to All Users by Default
-
-The backend contains validated classical and quantum models imported directly from research experiments, stored in `backend/models/pretrained/`:
-- **Classical Linear SVM (`classical_linear_svm_4_feats.joblib`)**: Scikit-Learn SVC with probability calibration on 4 features.
-- **Classical RBF SVM (`classical_rbf_svm_4_feats.joblib`)**: Non-linear kernel benchmark.
-- **4-Qubit Noiseless VQC (`vqc_4_weights.npy`, `vqc_4_bias.npy`)**: PennyLane 2-layer linear CNOT circuit.
-- **4-Qubit Noisy NISQ VQC (`vqc_noisy_4_weights.npy`, `vqc_noisy_4_bias.npy`)**: Open quantum system with depolarizing gate noise and readout bit-flip error.
-- **6-Qubit & 8-Qubit VQC (`vqc_6_weights.npy`, `vqc_8_weights.npy`)**: Scaled variational circuits.
-
-All users have access to these models by default via:
-```http
-GET /api/v1/models/defaults
-```
-The loader utility (`app/ml/loader.py`) loads them dynamically into active `IModel` instances for inference and evaluation without requiring re-training.
-
----
-
-## 8. Gemma LLM Microservice
-
-The platform includes a dedicated, containerized Gemma service running in `backend/gemma/` (`http://gemma:8001`):
-- **Network Isolation:** Runs on the internal Docker network. The frontend cannot access Gemma directly.
-- **No Arbitrary Code Execution:** Gemma reasons over statistical metadata (missingness, skewness, row count) to propose plans, but NEVER executes arbitrary code.
-- **Data Privacy:** Raw patient records are never transmitted to Gemma.
-
----
-
-## 9. Docker Deployment
-
-To launch the complete platform (Backend, Gemma, PostgreSQL, Redis, Celery Worker):
+However, if you want to build and run *only* the backend container:
 
 ```bash
 cd backend
-docker-compose up --build -d
+docker build -t hybrid_qml_backend .
+docker run -p 8000:8000 --env-file .env hybrid_qml_backend
 ```
 
-### Checking Services Status:
-```bash
-docker-compose ps
-```
-
-### Access Points:
-- **FastAPI Documentation (Swagger UI):** `http://localhost:8000/api/v1/docs`
-- **ReDoc:** `http://localhost:8000/api/v1/redoc`
-- **Health Endpoint:** `http://localhost:8000/api/v1/health`
-- **Gemma Health Endpoint:** `http://localhost:8001/health`
-- **PostgreSQL:** `localhost:5432`
-- **Redis:** `localhost:6379`
-
----
-
-## 10. Running Migrations
-
-Database schema migrations are managed via Alembic:
-
-```bash
-cd backend
-alembic upgrade head
-```
-
----
-
-## 11. Running Automated Tests
-
-Run the test suite using pytest:
-
-```bash
-cd backend
-pytest tests/ -v
-```
-
----
-
-## 12. Clinical Safety Disclaimer
-
-> **IMPORTANT MEDICAL NOTICE:**
-> The Hybrid Quantum Machine Learning Platform for Early Disease Detection is a research and computational screening tool. Predictions, estimated probabilities, and risk stratifications (`LOW`, `MEDIUM`, `HIGH`) are statistical model outputs and do **NOT** constitute medical diagnoses or clinical guarantees. All findings must be evaluated by licensed medical practitioners alongside conventional diagnostic modalities.
+Note: Running the backend in isolation requires MongoDB, Redis, MinIO, and Ollama to be accessible at the URLs specified in your `.env` file.

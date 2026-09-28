@@ -14,7 +14,7 @@ from app.schemas.training import TrainingConfigCreate, TrainingRunCreate, Traini
 from app.schemas.quantum import QuantumProviderResponse, QuantumDeviceResponse, QuantumJobCreate, QuantumJobResponse
 from app.schemas.prediction import PredictionRequest, PredictionResponse, SinglePredictionResult, RiskStratification
 from app.schemas.evaluation import (
-    EvaluationMetrics, EvaluationResponse, ComparativeEvaluationResponse, ModelBenchmarkEntry,
+    EvaluationMetrics, EvaluationResponse, 
     ModelComparisonRequest, ModelComparisonEntry, MetricComparisonRow, ComprehensiveComparisonResponse, ConfusionMatrix
 )
 from app.schemas.experiment import ExperimentCreate, ExperimentResponse
@@ -31,7 +31,7 @@ __all__ = [
     "TrainingConfigCreate", "TrainingRunCreate", "TrainingRunResponse",
     "QuantumProviderResponse", "QuantumDeviceResponse", "QuantumJobCreate", "QuantumJobResponse",
     "PredictionRequest", "PredictionResponse", "SinglePredictionResult", "RiskStratification",
-    "EvaluationMetrics", "EvaluationResponse", "ComparativeEvaluationResponse", "ModelBenchmarkEntry",
+    "EvaluationMetrics", "EvaluationResponse", 
     "ModelComparisonRequest", "ModelComparisonEntry", "MetricComparisonRow", "ComprehensiveComparisonResponse", "ConfusionMatrix",
     "ExperimentCreate", "ExperimentResponse",
     "ArtifactResponse", "ArtifactMetadata",

@@ -1,8 +1,9 @@
+from typing_extensions import Annotated
 """Experiment tracking schemas."""
 
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BeforeValidator, BaseModel, Field
 
 
 class ExperimentCreate(BaseModel):
@@ -14,7 +15,7 @@ class ExperimentCreate(BaseModel):
 
 class ExperimentResponse(BaseModel):
     """Experiment container representation."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     user_id: str
     name: str
     description: Optional[str] = None

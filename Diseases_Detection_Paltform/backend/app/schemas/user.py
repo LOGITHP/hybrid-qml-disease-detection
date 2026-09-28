@@ -2,12 +2,13 @@
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, BeforeValidator
+from typing_extensions import Annotated
 
 
 class UserResponse(BaseModel):
     """User account details."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     email: EmailStr
     full_name: Optional[str] = None
     role: str

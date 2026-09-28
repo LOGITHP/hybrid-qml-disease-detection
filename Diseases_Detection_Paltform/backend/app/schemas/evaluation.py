@@ -1,7 +1,8 @@
+from typing_extensions import Annotated
 """Evaluation metrics and comprehensive multi-model comparison schemas."""
 
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BeforeValidator, BaseModel, Field, model_validator
 
 
 class ConfusionMatrix(BaseModel):
@@ -29,7 +30,7 @@ class EvaluationMetrics(BaseModel):
 
 class EvaluationResponse(BaseModel):
     """Stored evaluation run representation."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     user_id: str
     model_version_id: str
     dataset_version_id: str

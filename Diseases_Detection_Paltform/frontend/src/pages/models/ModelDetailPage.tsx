@@ -106,7 +106,7 @@ export const ModelDetailPage: React.FC = () => {
                     <strong>Entanglement:</strong> 2 variational layers with linear CNOT topology.
                   </li>
                   <li>
-                    <strong>Measurement:</strong> Pauli-Z expectation pooling $\frac{1}{N}\sum \langle Z_i \rangle$.
+                    <strong>Measurement:</strong> Pauli-Z expectation pooling {"$\\frac{1}{N}\\sum \\langle Z_i \\rangle$."}
                   </li>
                   <li>
                     <strong>Classification Head:</strong> Classical sigmoid output $\sigma(z)$ with learned bias.

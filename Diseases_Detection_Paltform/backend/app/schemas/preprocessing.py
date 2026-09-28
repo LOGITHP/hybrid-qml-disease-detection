@@ -1,8 +1,9 @@
+from typing_extensions import Annotated
 """Preprocessing configuration, plan, and run execution schemas."""
 
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BeforeValidator, BaseModel, Field
 
 
 class PreprocessingConfigCreate(BaseModel):
@@ -40,7 +41,7 @@ class PreprocessingRunCreate(BaseModel):
 
 class PreprocessingRunResponse(BaseModel):
     """State and artifacts of a preprocessing execution."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     dataset_version_id: str
     user_id: str
     status: str  # pending, planning, awaiting_approval, running, completed, failed

@@ -1,23 +1,21 @@
-"""Prediction run ORM model."""
+"""Prediction ODM."""
+from typing import Optional, Dict, Any
+from beanie import Document
+from pydantic import Field
+from datetime import datetime, timezone
 
-from typing import Optional
-from sqlalchemy import ForeignKey, JSON, String
-from sqlalchemy.orm import Mapped, mapped_column
-from app.database.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-
-
-class PredictionRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Inference execution using a trained model version and associated pipeline."""
-
-    __tablename__ = "prediction_runs"
-
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    model_version_id: Mapped[str] = mapped_column(ForeignKey("model_versions.id", ondelete="CASCADE"), nullable=False, index=True)
-    preprocessing_run_id: Mapped[Optional[str]] = mapped_column(ForeignKey("preprocessing_runs.id", ondelete="SET NULL"), nullable=True)
-    feature_selection_run_id: Mapped[Optional[str]] = mapped_column(ForeignKey("feature_selection_runs.id", ondelete="SET NULL"), nullable=True)
-
-    # queued, running, completed, failed
-    status: Mapped[str] = mapped_column(String(50), default="queued", nullable=False)
-    input_artifact_id: Mapped[Optional[str]] = mapped_column(ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True)
-    output_artifact_id: Mapped[Optional[str]] = mapped_column(ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True)
-    predictions_summary: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+class Prediction(Document):
+    model_id: str
+    user_id: str
+    input_data: Dict[str, Any] = Field(default_factory=dict)
+    prediction_result: float
+    probability: Optional[float] = None
+    risk_score: Optional[float] = None
+    decision_threshold: Optional[float] = 0.5
+    explanation_json: Optional[Dict[str, Any]] = None
+    execution_time_ms: Optional[float] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    class Settings:
+        name = "predictions"

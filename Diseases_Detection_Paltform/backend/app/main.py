@@ -8,8 +8,10 @@ from app.api.v1.router import api_v1_router
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.logging import logger, setup_logging
-from app.database.session import engine
-
+from beanie import init_beanie
+from app.database.session import get_db_client
+from app.database.models import __all__ as all_models_names
+import importlib
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,9 +20,22 @@ async def lifespan(app: FastAPI):
     logger.info(
         f"Starting {settings.PROJECT_NAME} [Environment: {settings.ENVIRONMENT}] [Version: {settings.VERSION}]"
     )
+    
+    # Initialize MongoDB/Beanie
+    client = get_db_client()
+    db = client[settings.MONGODB_DB]
+    
+    # Load all models dynamically from app.database.models
+    models_module = importlib.import_module("app.database.models")
+    document_models = [getattr(models_module, model_name) for model_name in all_models_names]
+    
+    await init_beanie(database=db, document_models=document_models)
+    logger.info("MongoDB and Beanie ODM initialized successfully.")
+    
     yield
-    logger.info("Shutting down application and disposing database engine.")
-    await engine.dispose()
+    
+    logger.info("Shutting down application and closing MongoDB client.")
+    client.close()
 
 
 app = FastAPI(

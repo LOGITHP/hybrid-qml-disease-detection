@@ -1,13 +1,14 @@
+from typing_extensions import Annotated
 """Artifact metadata and storage response schemas."""
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BeforeValidator, BaseModel
 
 
 class ArtifactResponse(BaseModel):
     """Artifact metadata representation."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     user_id: str
     name: str
     artifact_type: str

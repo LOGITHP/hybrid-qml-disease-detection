@@ -6,7 +6,7 @@ from app.core.dependencies import get_current_user, get_model_service
 from app.database.models.user import User
 from app.schemas.common import StandardResponse
 from app.schemas.evaluation import ComprehensiveComparisonResponse, ModelComparisonRequest
-from app.schemas.model import ModelCreate, ModelResponse, ModelVersionResponse
+from app.schemas.model import ModelCreate, ModelResponse
 from app.services.model_service import ModelService
 
 router = APIRouter(prefix="/models", tags=["Models & Comparative Benchmarks"])
@@ -20,7 +20,7 @@ async def register_model(
 ):
     """Register a new user-custom model archetype."""
     model = await service.register_model(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         name=payload.name,
         model_type=payload.model_type,
         description=payload.description,
@@ -38,7 +38,7 @@ async def list_models(
     service: ModelService = Depends(get_model_service),
 ):
     """List models accessible to the user (their own models + system-wide default pre-trained models)."""
-    models = await service.list_user_models(user_id=current_user.id)
+    models = await service.list_user_models(user_id=str(current_user.id))
     return [ModelResponse.model_validate(m) for m in models]
 
 
@@ -87,7 +87,7 @@ async def compare_models(
     - Category Winners and CML vs QML Advantage Analysis
     """
     return await service.compare_selected_models(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         model_ids=payload.model_ids,
         model_version_ids=payload.model_version_ids,
         is_admin=(current_user.role == "admin"),
@@ -103,23 +103,10 @@ async def get_model(
     """Retrieve model archetype details."""
     model = await service.get_model(
         model_id=model_id,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         is_admin=(current_user.role == "admin"),
     )
     return ModelResponse.model_validate(model)
 
 
-@router.get("/{model_id}/versions/{version_id}", response_model=ModelVersionResponse)
-async def get_model_version(
-    model_id: str,
-    version_id: str,
-    current_user: User = Depends(get_current_user),
-    service: ModelService = Depends(get_model_service),
-):
-    """Fetch trained model version with evaluation metrics."""
-    version = await service.get_model_version(
-        version_id=version_id,
-        user_id=current_user.id,
-        is_admin=(current_user.role == "admin"),
-    )
-    return ModelVersionResponse.model_validate(version)
+

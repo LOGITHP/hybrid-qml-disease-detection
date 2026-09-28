@@ -39,9 +39,8 @@ export const PredictionPage: React.FC = () => {
 
   const predictMutation = useMutation({
     mutationFn: async () => {
-      const versionId = activeVersion?.id || 'v1.0';
       return await predictionsApi.predict({
-        model_version_id: versionId,
+        model_id: selectedModelId,
         features: biomarkers,
         decision_threshold: decisionThreshold,
       });

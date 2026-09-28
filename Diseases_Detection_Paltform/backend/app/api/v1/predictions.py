@@ -28,13 +28,13 @@ async def generate_prediction(
     model_service: ModelService = Depends(get_model_service),
 ):
     """Perform real-time model inference with configurable decision threshold and clinical risk stratification."""
-    version = await model_service.get_model_version(
-        version_id=payload.model_version_id,
-        user_id=current_user.id,
+    model_obj = await model_service.get_model(
+        model_id=payload.model_id,
+        user_id=str(current_user.id),
         is_admin=(current_user.role == "admin"),
     )
 
-    artifact_rel_path = f"models/{version.model_id}/versions/{version.id}/model.joblib"
+    artifact_rel_path = f"models/{model_obj.id}/model.joblib"
     if not artifact_storage.exists(artifact_rel_path):
         raise ResourceNotFoundError("TrainedModelArtifact", artifact_rel_path)
 
@@ -93,7 +93,7 @@ async def generate_prediction(
         )
 
     return PredictionResponse(
-        model_version_id=version.id,
+        model_id=str(model_obj.id),
         decision_threshold_applied=threshold,
         results=results,
         timestamp=datetime.now(timezone.utc),

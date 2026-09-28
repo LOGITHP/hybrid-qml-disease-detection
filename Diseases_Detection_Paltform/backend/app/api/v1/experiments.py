@@ -24,7 +24,7 @@ async def create_experiment(
 ):
     """Create a research experiment container to group multi-model runs."""
     exp = await service.create_experiment(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         name=payload.name,
         description=payload.description,
         tags=payload.tags,
@@ -44,7 +44,7 @@ async def compare_runs(
 ):
     """Aggregate CML and QML training runs into an end-to-end comparative benchmark and Markdown report."""
     report = await service.generate_comparative_report(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         experiment_id=experiment_id,
         training_run_ids=payload.training_run_ids,
     )

@@ -1,8 +1,9 @@
+from typing_extensions import Annotated
 """Dataset and dataset version schemas."""
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BeforeValidator, BaseModel, Field
 
 
 class DatasetCreate(BaseModel):
@@ -13,12 +14,13 @@ class DatasetCreate(BaseModel):
 
 class DatasetResponse(BaseModel):
     """Dataset metadata representation."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     user_id: str
     name: str
     description: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    versions: List["DatasetVersionResponse"] = []
 
     class Config:
         from_attributes = True
@@ -26,7 +28,7 @@ class DatasetResponse(BaseModel):
 
 class DatasetVersionResponse(BaseModel):
     """Dataset version record."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     dataset_id: str
     user_id: str
     version_tag: str

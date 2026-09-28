@@ -22,13 +22,11 @@ import {
 
 export const authApi = {
   login: async (credentials: { username: string; password: string }): Promise<AuthResponse> => {
-    // Backend OAuth2PasswordRequestForm expects form-data
-    const params = new URLSearchParams();
-    params.append('username', credentials.username);
-    params.append('password', credentials.password);
-    const res = await apiClient.post<AuthResponse>('/auth/login', params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
+    const payload = {
+      email: credentials.username,
+      password: credentials.password,
+    };
+    const res = await apiClient.post<AuthResponse>('/auth/login', payload);
     return res.data;
   },
 
@@ -62,6 +60,10 @@ export const datasetsApi = {
   create: async (payload: { name: string; description?: string }): Promise<Dataset> => {
     const res = await apiClient.post<{ data: Dataset }>('/datasets', payload);
     return res.data.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/datasets/${id}`);
   },
 
   uploadVersion: async (
@@ -162,7 +164,7 @@ export const trainingApi = {
 
 export const predictionsApi = {
   predict: async (payload: {
-    model_version_id: string;
+    model_id: string;
     features: Record<string, number> | Record<string, number>[];
     decision_threshold?: number;
   }): Promise<PredictionResponse> => {

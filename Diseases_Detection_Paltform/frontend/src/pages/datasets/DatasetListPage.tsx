@@ -10,6 +10,7 @@ import {
   Plus,
   CheckCircle2,
   AlertCircle,
+  Trash,
 } from 'lucide-react';
 import { datasetsApi } from '../../api';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -73,6 +74,15 @@ export const DatasetListPage: React.FC = () => {
     },
     onError: (err: any) => {
       setUploadStatus(`Error: ${err.message || 'Upload failed'}`);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await datasetsApi.delete(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['datasets'] });
     },
   });
 
@@ -179,6 +189,18 @@ export const DatasetListPage: React.FC = () => {
                           <span>Preprocess</span>
                           <ArrowRight className="w-3 h-3" />
                         </Link>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to delete this dataset? This action cannot be undone.')) {
+                              deleteMutation.mutate(dataset.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                          title="Delete dataset"
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>

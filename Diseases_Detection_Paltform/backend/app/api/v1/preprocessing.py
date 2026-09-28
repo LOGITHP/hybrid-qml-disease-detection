@@ -34,7 +34,7 @@ async def generate_preprocessing_plan(
     """Generate an AI-driven, leak-free preprocessing plan proposed by Gemma LLM."""
     version = await dataset_service.get_version(
         version_id=payload.dataset_version_id,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         is_admin=(current_user.role == "admin"),
     )
     df = dataset_service.load_version_dataframe(dataset_id=version.dataset_id, version_id=version.id)
@@ -59,7 +59,7 @@ async def execute_preprocessing_plan(
     """Execute the approved preprocessing pipeline deterministically with zero data leakage."""
     version = await dataset_service.get_version(
         version_id=payload.dataset_version_id,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         is_admin=(current_user.role == "admin"),
     )
     df = dataset_service.load_version_dataframe(dataset_id=version.dataset_id, version_id=version.id)

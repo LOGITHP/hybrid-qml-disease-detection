@@ -187,7 +187,7 @@ export interface SinglePredictionResult {
 }
 
 export interface PredictionResponse {
-  model_version_id: string;
+  model_id: string;
   decision_threshold_applied: number;
   results: SinglePredictionResult[];
   timestamp: string;

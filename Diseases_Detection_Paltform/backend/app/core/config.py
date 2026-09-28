@@ -19,17 +19,21 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # PostgreSQL Database
-    DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://postgres:postgrespassword@localhost:5432/hybrid_qml_db",
-        description="Async database connection URI",
+    # MongoDB Database
+    MONGODB_URL: str = Field(
+        default="mongodb://localhost:27017",
+        description="MongoDB connection URI",
     )
+    MONGODB_DB: str = Field(default="hybrid_qml_db", description="MongoDB database name")
 
     # Redis URL
     REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URI")
 
-    # Artifact storage
-    ARTIFACT_ROOT: str = Field(default="./artifacts", description="Local filesystem path for artifact storage")
+    # MinIO Storage
+    MINIO_URL: str = Field(default="http://localhost:9000", description="MinIO endpoint URL")
+    MINIO_ACCESS_KEY: str = Field(default="minioadmin", description="MinIO access key")
+    MINIO_SECRET_KEY: str = Field(default="minioadmin", description="MinIO secret key")
+    MINIO_BUCKET_NAME: str = Field(default="hybrid-qml-artifacts", description="MinIO default bucket")
 
     # Security & JWT
     JWT_SECRET: str = Field(
@@ -54,9 +58,11 @@ class Settings(BaseSettings):
         return value
 
     # AI Preprocessing Agent LLM Provider Configuration
-    LLM_PROVIDER: str = Field(default="gemini", description="Default LLM provider")
-    LLM_MODEL: str = Field(default="gemini-1.5-flash", description="Default model identifier")
-    GEMINI_API_KEY: str = Field(default="", description="API key for Gemini LLM provider (optional in Phase 1)")
+    LLM_PROVIDER: str = Field(default="ollama", description="Default LLM provider")
+    LLM_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama API base URL")
+
+    # Local Artifacts Storage (if MinIO is not used directly or fallback)
+    ARTIFACT_ROOT: str = Field(default="/app/artifacts", description="Root directory for local artifact storage")
 
     model_config = SettingsConfigDict(
         env_file=".env",

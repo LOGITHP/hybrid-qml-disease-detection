@@ -1,8 +1,9 @@
+from typing_extensions import Annotated
 """Model registry schemas."""
 
 from datetime import datetime
 from typing import Any, Dict, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BeforeValidator, BaseModel, Field
 
 
 class ModelCreate(BaseModel):
@@ -20,7 +21,7 @@ class ModelConfigCreate(BaseModel):
 
 class ModelResponse(BaseModel):
     """Model registry entry representation."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     user_id: Optional[str] = None
     name: str
     model_type: str
@@ -35,7 +36,7 @@ class ModelResponse(BaseModel):
 
 class ModelVersionResponse(BaseModel):
     """Specific trained model version record."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     model_id: str
     user_id: Optional[str] = None
     version_tag: str

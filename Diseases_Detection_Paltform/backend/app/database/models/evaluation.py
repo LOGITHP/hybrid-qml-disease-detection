@@ -1,20 +1,22 @@
-"""Evaluation run ORM model."""
+"""Evaluation ODM."""
+from typing import Optional, Dict, Any
+from beanie import Document
+from pydantic import Field
+from datetime import datetime, timezone
 
-from typing import Optional
-from sqlalchemy import ForeignKey, JSON, String
-from sqlalchemy.orm import Mapped, mapped_column
-from app.database.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-
-
-class EvaluationRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Model evaluation record storing benchmark metrics and comparative results."""
-
-    __tablename__ = "evaluation_runs"
-
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    model_version_id: Mapped[str] = mapped_column(ForeignKey("model_versions.id", ondelete="CASCADE"), nullable=False, index=True)
-    dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id", ondelete="CASCADE"), nullable=False, index=True)
-
-    status: Mapped[str] = mapped_column(String(50), default="completed", nullable=False)
-    metrics: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # accuracy, precision, recall, f1, roc_auc, cm
-    report_artifact_id: Mapped[Optional[str]] = mapped_column(ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True)
+class Evaluation(Document):
+    model_id: str
+    dataset_version_id: str
+    user_id: str
+    accuracy: float
+    precision: float
+    recall: float
+    f1_score: float
+    roc_auc: Optional[float] = None
+    confusion_matrix: Optional[list] = None
+    metrics_json: Optional[Dict[str, Any]] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    class Settings:
+        name = "evaluations"

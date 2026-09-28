@@ -19,7 +19,7 @@ async def create_dataset(
 ):
     """Register a new biomedical dataset container."""
     dataset = await service.create_dataset(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         name=payload.name,
         description=payload.description,
     )
@@ -35,8 +35,28 @@ async def list_datasets(
     service: DatasetService = Depends(get_dataset_service),
 ):
     """List datasets owned by the authenticated user."""
-    datasets = await service.list_user_datasets(user_id=current_user.id)
-    return [DatasetResponse.model_validate(d) for d in datasets]
+    datasets = await service.list_user_datasets(user_id=str(current_user.id))
+    results = []
+    for d in datasets:
+        versions = await service.dataset_repo.list_versions(str(d.id))
+        d_dict = d.model_dump()
+        d_dict["versions"] = versions
+        results.append(DatasetResponse.model_validate(d_dict))
+    return results
+
+
+@router.delete("/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_dataset(
+    dataset_id: str,
+    current_user: User = Depends(get_current_user),
+    service: DatasetService = Depends(get_dataset_service),
+):
+    """Delete a dataset and its versions."""
+    await service.delete_dataset(
+        dataset_id=dataset_id,
+        user_id=str(current_user.id),
+        is_admin=(current_user.role == "admin"),
+    )
 
 
 @router.get("/{dataset_id}", response_model=DatasetResponse)
@@ -48,10 +68,13 @@ async def get_dataset(
     """Retrieve metadata for a specific dataset."""
     dataset = await service.get_dataset(
         dataset_id=dataset_id,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         is_admin=(current_user.role == "admin"),
     )
-    return DatasetResponse.model_validate(dataset)
+    versions = await service.dataset_repo.list_versions(str(dataset.id))
+    d_dict = dataset.model_dump()
+    d_dict["versions"] = versions
+    return DatasetResponse.model_validate(d_dict)
 
 
 @router.post("/{dataset_id}/versions", response_model=StandardResponse[DatasetVersionResponse], status_code=status.HTTP_201_CREATED)
@@ -66,7 +89,7 @@ async def upload_dataset_version(
     file_bytes = await file.read()
     version = await service.upload_version(
         dataset_id=dataset_id,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         file_bytes=file_bytes,
         filename=file.filename or "dataset.csv",
         version_tag=version_tag,
@@ -88,6 +111,6 @@ async def analyze_dataset_version(
     """Compute privacy-preserving statistical summary without leaking patient data."""
     return await service.analyze_version(
         version_id=version_id,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         is_admin=(current_user.role == "admin"),
     )

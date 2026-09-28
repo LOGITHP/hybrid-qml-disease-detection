@@ -1,8 +1,9 @@
+from typing_extensions import Annotated
 """Training configuration and execution run schemas."""
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field
+from pydantic import BeforeValidator, BaseModel, Field
 
 
 class TrainingConfigCreate(BaseModel):
@@ -29,7 +30,7 @@ class TrainingRunCreate(BaseModel):
 
 class TrainingRunResponse(BaseModel):
     """Training run state and performance summary."""
-    id: str
+    id: Annotated[str, BeforeValidator(str)]
     user_id: str
     model_id: str
     model_version_id: Optional[str] = None
