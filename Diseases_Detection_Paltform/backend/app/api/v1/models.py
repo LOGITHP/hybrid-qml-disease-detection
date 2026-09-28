@@ -37,7 +37,7 @@ async def list_models(
     current_user: User = Depends(get_current_user),
     service: ModelService = Depends(get_model_service),
 ):
-    """List models accessible to the user (their own models + system-wide default pre-trained models)."""
+    """List the user's trained models and shared built-in model templates."""
     models = await service.list_user_models(user_id=str(current_user.id))
     return [ModelResponse.model_validate(m) for m in models]
 

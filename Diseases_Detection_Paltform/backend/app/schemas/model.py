@@ -28,6 +28,7 @@ class ModelResponse(BaseModel):
     description: Optional[str] = None
     is_default: bool = False
     status: str = "created"
+    configuration: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 

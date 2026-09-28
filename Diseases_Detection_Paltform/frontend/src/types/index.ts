@@ -124,6 +124,7 @@ export interface Model {
   description?: string;
   is_default: boolean;
   status?: string;
+  configuration?: Record<string, any>;
   is_active: boolean;
   created_at: string;
   versions?: ModelVersion[];
@@ -166,16 +167,16 @@ export interface ModelVersion {
 
 export interface TrainingRun {
   id: string;
-  experiment_id?: string;
+  experiment_id?: string | null;
   model_id: string;
   user_id: string;
   dataset_version_id: string;
-  feature_selection_run_id: string;
+  feature_selection_run_id?: string;
+  preprocessing_run_id?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
-  started_at: string;
-  completed_at?: string;
-  duration_seconds?: number;
-  metrics?: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+  metrics?: Record<string, any>;
   loss_history?: number[];
   error_message?: string;
 }
@@ -207,28 +208,23 @@ export interface RiskStratification {
 }
 
 export interface SinglePredictionResult {
-  predicted_class: number;
+  training_run_id: string;
+  dataset_id: string;
+  model_type: string;
+  score: number;
+  threshold: number;
+  prediction: number;
   predicted_label: 'POSITIVE' | 'NEGATIVE';
-  probability: number;
-  risk_stratification: RiskStratification;
-  input_features_used: string[];
-  sample_id?: string;
-}
-
-export interface PredictionResponse {
-  model_id: string;
-  preprocessing_run_id?: string;
-  feature_selection_run_id?: string;
-  decision_threshold_applied: number;
-  results: SinglePredictionResult[];
-  timestamp: string;
+  risk_category: 'LOW' | 'MEDIUM' | 'HIGH';
+  explanation?: Record<string, any> | null;
 }
 
 export interface MetricComparisonRow {
-  metric_name: string;
-  unit: string;
+  metric_key: string;
+  display_name: string;
   higher_is_better: boolean;
-  values: Record<string, number>;
+  values: Record<string, number | null>;
+  best_model: string;
 }
 
 export interface ModelComparisonEntry {
@@ -236,38 +232,32 @@ export interface ModelComparisonEntry {
   model_name: string;
   model_type: string;
   version_tag: string;
-  is_quantum: boolean;
   feature_count: number;
   selected_features: string[];
   accuracy: number;
-  balanced_accuracy: number;
   sensitivity: number;
   specificity: number;
   precision: number;
   f1_score: number;
-  roc_auc: number;
-  training_time_seconds: number;
+  balanced_accuracy?: number | null;
+  roc_auc?: number | null;
+  training_duration_sec?: number | null;
+  quantum_details?: Record<string, any>;
   confusion_matrix: {
-    tp: number;
-    tn: number;
-    fp: number;
-    fn: number;
+    true_positive: number;
+    true_negative: number;
+    false_positive: number;
+    false_negative: number;
   };
 }
 
 export interface ComprehensiveComparisonResponse {
-  timestamp: string;
-  models_compared_count: number;
-  models: ModelComparisonEntry[];
-  metrics_matrix: MetricComparisonRow[];
-  best_performer: {
-    by_accuracy: string;
-    by_sensitivity_recall: string;
-    by_f1_score: string;
-    by_roc_auc: string;
-  };
-  cml_vs_qml_insights: string[];
-  markdown_comparison_table: string;
+  models_compared: ModelComparisonEntry[];
+  comparison_matrix: MetricComparisonRow[];
+  category_winners: Record<string, string>;
+  cml_vs_qml_insights: Record<string, any>;
+  markdown_table: string;
+  executive_summary: string;
 }
 
 export interface Experiment {

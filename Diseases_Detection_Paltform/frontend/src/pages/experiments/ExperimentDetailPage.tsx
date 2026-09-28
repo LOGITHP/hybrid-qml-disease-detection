@@ -32,7 +32,7 @@ export const ExperimentDetailPage: React.FC = () => {
       enabled: !!runId,
     })),
   });
-  const { data: models } = useQuery({ queryKey: ['defaultModels'], queryFn: modelsApi.listDefaults });
+  const { data: models } = useQuery({ queryKey: ['models'], queryFn: modelsApi.list });
 
   if (isLoading) return <LoadingSkeleton rows={4} />;
   if (isError || !experiment) return <EmptyState icon={FlaskConical} title="Experiment not found" description="No saved dataset-driven training run matches this experiment ID." />;
