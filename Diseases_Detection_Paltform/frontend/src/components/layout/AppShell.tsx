@@ -17,10 +17,10 @@ export const AppShell: React.FC = () => {
       {mobileOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
           <div
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-900">
+          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
             <Sidebar onCloseMobile={() => setMobileOpen(false)} />
           </div>
         </div>
