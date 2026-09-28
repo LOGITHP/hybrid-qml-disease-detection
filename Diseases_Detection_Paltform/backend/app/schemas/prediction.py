@@ -21,7 +21,7 @@ class RiskStratification(BaseModel):
 class PredictionRequest(BaseModel):
     """Payload for real-time model inference."""
     model_id: str
-    features: Union[Dict[str, float], List[Dict[str, float]]] = Field(
+    features: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(
         ...,
         description="Patient biomarker readings mapped by feature name, or list of patients."
     )

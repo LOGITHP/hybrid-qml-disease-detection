@@ -47,7 +47,8 @@ async def list_default_models(
     current_user: User = Depends(get_current_user),
     service: ModelService = Depends(get_model_service),
 ):
-    """List all pre-trained system models available to every user by default."""
+    """List built-in system model templates that are fitted to an uploaded dataset during training."""
+    await service.seed_default_models()
     models = await service.model_repo.list_defaults()
     return [ModelResponse.model_validate(m) for m in models]
 
@@ -57,10 +58,10 @@ async def seed_defaults(
     current_user: User = Depends(get_current_user),
     service: ModelService = Depends(get_model_service),
 ):
-    """Seed or update all pre-trained repository models into the system registry."""
+    """Seed the built-in model templates into the system registry."""
     seeded = await service.seed_default_models()
     return StandardResponse(
-        message=f"Seeded {len(seeded)} pre-trained models into the platform.",
+        message=f"Seeded {len(seeded)} built-in model templates into the platform.",
         data=[ModelResponse.model_validate(m) for m in seeded],
     )
 

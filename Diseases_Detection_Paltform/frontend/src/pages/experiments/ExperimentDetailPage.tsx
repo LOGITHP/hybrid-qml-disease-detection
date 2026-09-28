@@ -1,82 +1,102 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import {
-  FlaskConical,
-  Database,
-  Sliders,
-  Filter,
-  Layers,
-  Cpu,
-  Atom,
-  BarChart3,
-  Activity,
-  CheckCircle2,
-  ArrowRight,
-  ShieldCheck,
-} from 'lucide-react';
-
-const CHAIN_STAGES = [
-  { stage: '1. Ingestion', title: 'Biomedical Dataset', desc: 'Lung Cancer Cohort (309 patients, 16 biomarkers)', icon: Database, artifact: 'datasets/v1/original.csv' },
-  { stage: '2. Preprocessing', title: 'AI Preprocessing Agent', desc: 'Stratified 70/15/15 split, Median Imputation, Zero Leakage', icon: Sliders, artifact: 'runs/prep-401/pipeline.joblib' },
-  { stage: '3. Features', title: 'Canonical Feature Selection', desc: 'Top 4: WHEEZING, YELLOW_FINGERS, AGE, SHORTNESS_OF_BREATH', icon: Filter, artifact: 'runs/fs-run-001/features.json' },
-  { stage: '4. Models', title: 'Hybrid Architectures', desc: 'Classical Linear/RBF SVM & PennyLane 4-Qubit VQC', icon: Layers, artifact: 'models/vqc-4/weights.npy' },
-  { stage: '5. Quantum', title: 'Quantum Execution', desc: 'AngleEmbedding RY + Linear CNOT Entanglement + Pauli-Z', icon: Atom, artifact: 'backends/default.qubit' },
-  { stage: '6. Evaluation', title: 'Clinical Benchmark', desc: 'Accuracy: 93.5% &bull; Sensitivity: 95.1% &bull; ROC-AUC: 0.865', icon: BarChart3, artifact: 'evaluations/benchmark-matrix.json' },
-];
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { FlaskConical, Database, Sliders, Filter, Cpu, ArrowRight } from 'lucide-react';
+import { datasetsApi, experimentsApi, modelsApi, trainingApi } from '../../api';
+import { EmptyState } from '../../components/common/EmptyState';
+import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
+import { StatusBadge } from '../../components/common/StatusBadge';
 
 export const ExperimentDetailPage: React.FC = () => {
   const { experimentId } = useParams<{ experimentId: string }>();
+  const { data: experiment, isLoading, isError } = useQuery({
+    queryKey: ['experiment', experimentId],
+    queryFn: () => (experimentId ? experimentsApi.get(experimentId) : Promise.reject(new Error('Missing experiment ID'))),
+    enabled: !!experimentId,
+  });
+  const { data: dataset } = useQuery({
+    queryKey: ['dataset', experiment?.dataset_id],
+    queryFn: () => (experiment?.dataset_id ? datasetsApi.get(experiment.dataset_id) : Promise.reject(new Error('No dataset'))),
+    enabled: !!experiment?.dataset_id,
+  });
+  const version = dataset?.versions?.find((item) => item.id === experiment?.dataset_version_id);
+  const { data: analysis } = useQuery({
+    queryKey: ['datasetAnalysis', dataset?.id, version?.id],
+    queryFn: () => (dataset?.id && version ? datasetsApi.analyzeVersion(dataset.id, version.id) : Promise.reject(new Error('No dataset version'))),
+    enabled: !!dataset?.id && !!version,
+  });
+  const runQueries = useQueries({
+    queries: (experiment?.training_run_ids || []).map((runId) => ({
+      queryKey: ['trainingRun', runId],
+      queryFn: () => trainingApi.getStatus(runId),
+      enabled: !!runId,
+    })),
+  });
+  const { data: models } = useQuery({ queryKey: ['defaultModels'], queryFn: modelsApi.listDefaults });
+
+  if (isLoading) return <LoadingSkeleton rows={4} />;
+  if (isError || !experiment) return <EmptyState icon={FlaskConical} title="Experiment not found" description="No saved dataset-driven training run matches this experiment ID." />;
+
+  const stages = [
+    {
+      title: 'Uploaded dataset',
+      description: `${experiment.dataset_name || dataset?.name || 'Dataset'} · ${analysis?.row_count ?? version?.row_count ?? '—'} rows · ${analysis?.column_count ?? version?.column_count ?? '—'} columns · ${version?.version_tag || 'version unavailable'}`,
+      artifact: analysis?.file_metadata?.filename || 'Original uploaded file',
+      Icon: Database,
+    },
+    {
+      title: 'Preprocessing',
+      description: experiment.preprocessing_run_id ? 'Saved training-only imputation, encoding, scaling, and split configuration.' : 'No saved preprocessing run was linked to this record.',
+      artifact: experiment.preprocessing_run_id || 'Not recorded',
+      Icon: Sliders,
+    },
+    {
+      title: 'Feature selection',
+      description: `Target: ${experiment.target_column || '—'} · ${experiment.selected_features?.length || 0} feature columns selected`,
+      artifact: experiment.selected_features?.length ? experiment.selected_features.join(', ') : experiment.feature_selection_run_id || 'No feature set recorded',
+      Icon: Filter,
+    },
+    ...runQueries.map((query, index) => {
+      const run = query.data;
+      const model = models?.find((entry) => entry.id === run?.model_id);
+      const metrics = run?.metrics;
+      return {
+        title: `Training run ${index + 1}${model ? ` · ${model.name}` : ''}`,
+        description: run ? `Status: ${run.status}${metrics ? ` · held-out test accuracy ${(Number(metrics.accuracy) * 100).toFixed(1)}%` : ''}` : 'Training run details are unavailable.',
+        artifact: run?.id || experiment.training_run_ids?.[index] || 'Loading run',
+        Icon: Cpu,
+      };
+    }),
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="font-mono text-xs text-slate-400">ID: {experimentId || 'exp-01'}</span>
-            <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-              Audited & Reproducible
-            </span>
+            <span className="font-mono text-xs text-slate-400">ID: {experiment.id}</span>
+            <StatusBadge status={experiment.status} size="sm" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
-            End-to-End Reproducibility Chain
-          </h1>
-          <p className="text-xs text-slate-500">
-            Unbroken provenance tracing data ingestion, transformations, circuit weights, and clinical evaluation
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1">{experiment.name}</h1>
+          <p className="text-xs text-slate-500">{experiment.description || 'Saved data and model provenance for this training run.'}</p>
         </div>
-
-        <Link
-          to="/reports"
-          className="btn-primary text-xs flex items-center space-x-1.5 self-start sm:self-auto"
-        >
-          <span>Generate Audit Report</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
+        <Link to="/experiments" className="btn-secondary text-xs inline-flex items-center gap-2"><ArrowRight className="w-3.5 h-3.5 rotate-180" />Back to Experiments</Link>
       </div>
 
-      {/* Reproducibility Timeline */}
-      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-8 shadow-sm space-y-8">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-          Traceable Scientific Execution Pipeline
-        </h3>
-
-        <div className="relative border-l-2 border-slate-200 ml-4 pl-6 space-y-8">
-          {CHAIN_STAGES.map((step) => {
-            const Icon = step.icon;
+      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-8 shadow-sm space-y-7">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Recorded Pipeline</h2>
+        <div className="relative border-l-2 border-slate-200 ml-4 pl-6 space-y-6">
+          {stages.map((stage, index) => {
+            const Icon = stage.Icon;
             return (
-              <div key={step.stage} className="relative group">
-                {/* Timeline Node Dot */}
-                <div className="absolute -left-[35px] top-0.5 w-6 h-6 rounded-full bg-brand-800 text-white flex items-center justify-center text-xs shadow-sm ring-4 ring-white">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                </div>
-
-                <div className="space-y-1 bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">{step.stage}: {step.title}</span>
-                    <span className="text-[10px] font-mono text-slate-400">{step.artifact}</span>
+              <div key={`${stage.title}-${index}`} className="relative">
+                <div className="absolute -left-[35px] top-0.5 w-6 h-6 rounded-full bg-brand-800 text-white flex items-center justify-center ring-4 ring-white"><Icon className="w-3.5 h-3.5" /></div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-900">{index + 1}. {stage.title}</span>
+                    <span className="text-[10px] font-mono text-slate-400 break-all text-right">{stage.artifact}</span>
                   </div>
-                  <p className="text-xs text-slate-600">{step.desc}</p>
+                  <p className="text-xs text-slate-600">{stage.description}</p>
                 </div>
               </div>
             );

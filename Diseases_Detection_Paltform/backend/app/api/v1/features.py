@@ -17,13 +17,26 @@ async def select_features(
     service: DatasetService = Depends(get_dataset_service),
 ):
     """Execute canonical feature selection (Single Source of Truth for SVM and VQC models)."""
+    target = payload.target_column
+    if target is None:
+        analysis = await service.analyze_version(
+            version_id=payload.dataset_version_id,
+            user_id=str(current_user.id),
+            is_admin=(current_user.role == "admin"),
+        )
+        target = analysis.get("target_column")
+    if not target:
+        from app.core.exceptions import ValidationError
+        raise ValidationError("Select the target column before running feature selection.")
+
     fs_run = await service.execute_feature_selection(
         dataset_version_id=payload.dataset_version_id,
         user_id=str(current_user.id),
-        target_column="LUNG_CANCER",  # Default disease target
+        target_column=target,
         ranking_method=payload.ranking_method,
         k_features=payload.k_features or 4,
         is_admin=(current_user.role == "admin"),
+        selected_features=payload.selected_features,
     )
     return StandardResponse(
         message="Features ranked and canonical selection recorded.",

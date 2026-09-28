@@ -28,11 +28,41 @@ async def create_experiment(
         name=payload.name,
         description=payload.description,
         tags=payload.tags,
+        dataset_id=payload.dataset_id,
+        dataset_version_id=payload.dataset_version_id,
+        dataset_name=payload.dataset_name,
+        preprocessing_run_id=payload.preprocessing_run_id,
+        feature_selection_run_id=payload.feature_selection_run_id,
+        target_column=payload.target_column,
+        selected_features=payload.selected_features,
     )
     return StandardResponse(
         message="Experiment container created.",
         data=ExperimentResponse.model_validate(exp),
     )
+
+
+@router.get("", response_model=List[ExperimentResponse])
+async def list_experiments(
+    current_user: User = Depends(get_current_user),
+    service: ExperimentService = Depends(get_experiment_service),
+):
+    experiments = await service.list_user_experiments(user_id=str(current_user.id))
+    return [ExperimentResponse.model_validate(experiment) for experiment in experiments]
+
+
+@router.get("/{experiment_id}", response_model=ExperimentResponse)
+async def get_experiment(
+    experiment_id: str,
+    current_user: User = Depends(get_current_user),
+    service: ExperimentService = Depends(get_experiment_service),
+):
+    experiment = await service.get_user_experiment(
+        experiment_id=experiment_id,
+        user_id=str(current_user.id),
+        is_admin=(current_user.role == "admin"),
+    )
+    return ExperimentResponse.model_validate(experiment)
 
 
 @router.post("/{experiment_id}/compare", response_model=StandardResponse[dict])

@@ -1,7 +1,7 @@
 """Dataset upload, management, and profiling endpoints."""
 
 from typing import List
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from app.core.dependencies import get_current_user, get_dataset_service
 from app.database.models.user import User
 from app.schemas.common import StandardResponse
@@ -105,12 +105,22 @@ async def upload_dataset_version(
 async def analyze_dataset_version(
     dataset_id: str,
     version_id: str,
+    target_column: str | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     service: DatasetService = Depends(get_dataset_service),
 ):
     """Compute privacy-preserving statistical summary without leaking patient data."""
+    version = await service.get_version(
+        version_id=version_id,
+        user_id=str(current_user.id),
+        is_admin=(current_user.role == "admin"),
+    )
+    if str(version.dataset_id) != dataset_id:
+        from app.core.exceptions import ResourceNotFoundError
+        raise ResourceNotFoundError("DatasetVersion", version_id)
     return await service.analyze_version(
         version_id=version_id,
         user_id=str(current_user.id),
         is_admin=(current_user.role == "admin"),
+        target_column=target_column,
     )

@@ -13,6 +13,16 @@ class PreprocessingRun(Document):
     scaling_strategy: Optional[str] = None
     encoding_strategy: Optional[str] = None
     output_dataset_version_id: Optional[str] = None
+    
+    # Preprocessing Artifact fields
+    is_ready_for_training: bool = False
+    artifact_storage_path: Optional[str] = None
+    target_column: Optional[str] = None
+    target_mapping: Optional[Dict[str, int]] = None
+    original_feature_count: Optional[int] = None
+    final_feature_count: Optional[int] = None
+    final_feature_names: Optional[List[str]] = None
+    
     scaler_artifact_id: Optional[str] = None
     imputer_artifact_id: Optional[str] = None
     encoder_artifact_id: Optional[str] = None

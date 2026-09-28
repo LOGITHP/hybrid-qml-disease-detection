@@ -1,150 +1,83 @@
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import {
-  Lightbulb,
-  ShieldCheck,
-  Atom,
-  Sliders,
-  ChevronDown,
-  ChevronUp,
-  Activity,
-  ArrowRight,
-  Info,
-} from 'lucide-react';
+import React from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { Activity, ArrowRight, Lightbulb } from 'lucide-react';
 import { MedicalNotice } from '../../components/common/MedicalNotice';
+import { EmptyState } from '../../components/common/EmptyState';
+import { PredictionResponse } from '../../types';
 
 export const ExplainabilityPage: React.FC = () => {
   const { predictionId } = useParams<{ predictionId: string }>();
-  const [showTechnical, setShowTechnical] = useState(false);
+  const prediction = (() => {
+    try { return JSON.parse(sessionStorage.getItem('latest_prediction') || 'null') as PredictionResponse | null; }
+    catch { return null; }
+  })();
+  const inputs = (() => {
+    try { return JSON.parse(sessionStorage.getItem('latest_prediction_input') || '{}') as Record<string, unknown>; }
+    catch { return {}; }
+  })();
+  const result = prediction?.results?.[0];
+  const modelName = sessionStorage.getItem('latest_prediction_model_name') || 'Trained model';
+  const modelType = sessionStorage.getItem('latest_prediction_model_type') || '';
 
-  const featureAttributions = [
-    { feature: 'WHEEZING', value: 'Present (2)', contribution: 0.38, direction: 'Positive (Elevates Risk)' },
-    { feature: 'YELLOW_FINGERS', value: 'Present (2)', contribution: 0.29, direction: 'Positive (Elevates Risk)' },
-    { feature: 'AGE', value: '65 Years', contribution: 0.21, direction: 'Moderate Positive' },
-    { feature: 'SHORTNESS_OF_BREATH', value: 'Severe (2)', contribution: 0.12, direction: 'Positive (Elevates Risk)' },
-  ];
+  if (!prediction || !result) {
+    return <EmptyState icon={Lightbulb} title="No prediction to explain" description="Run an inference on the current selected feature set to review its actual input values and model output." />;
+  }
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <div className="flex items-center space-x-2 text-xs font-semibold text-brand-700 uppercase tracking-wider mb-1">
-            <Lightbulb className="w-4 h-4 text-quantum-600" />
-            <span>Clinical Model Interpretability</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Prediction Explainability & Provenance
-          </h1>
-          <p className="text-xs text-slate-500">
-            Mathematical breakdown of how patient biomarker values influenced the model decision
-          </p>
+          <div className="flex items-center space-x-2 text-xs font-semibold text-brand-700 uppercase tracking-wider mb-1"><Lightbulb className="w-4 h-4 text-quantum-600" /><span>Prediction Provenance</span></div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Inputs and Model Output</h1>
+          <p className="text-xs text-slate-500">Prediction {predictionId || result.sample_id || 'latest'} · {modelName}</p>
         </div>
-
-        <Link
-          to="/predictions"
-          className="btn-secondary text-xs flex items-center space-x-1.5 self-start sm:self-auto"
-        >
-          <Activity className="w-3.5 h-3.5" />
-          <span>Back to Screening</span>
-        </Link>
+        <Link to="/predictions" className="btn-secondary text-xs flex items-center space-x-1.5"><Activity className="w-3.5 h-3.5" /><span>New prediction</span></Link>
       </div>
 
-      {/* Primary Interpretation Card */}
-      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">What the Model Predicted</h3>
-            <p className="text-xs text-slate-500">
-              Output: <span className="font-bold text-red-700">Positive Screening Indication</span> (Estimated Likelihood: 82.4%)
-            </p>
-          </div>
-          <span className="badge bg-red-50 text-red-700 border border-red-200 font-semibold">
-            HIGH RISK CATEGORY
-          </span>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5">
+          <span className="text-[11px] text-slate-500">Model output score</span>
+          <div className="text-2xl font-bold text-slate-900">{result.probability == null ? 'Unavailable' : `${(result.probability * 100).toFixed(1)}%`}</div>
+          <p className="text-[11px] text-slate-500 mt-1">{modelType === 'vqc' ? 'Uncalibrated VQC score; not a clinical probability.' : 'Model probability; not a clinically validated risk estimate.'}</p>
         </div>
-
-        {/* Feature Contribution Distribution */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Biomarker Feature Attributions
-            </span>
-            <span className="text-[11px] text-slate-400">
-              Relative contribution to log-odds activation
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            {featureAttributions.map((item) => (
-              <div key={item.feature} className="p-3 bg-slate-50 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-xs font-medium">
-                  <span className="text-slate-900 font-mono font-bold">{item.feature} ({item.value})</span>
-                  <span className="text-brand-900 font-mono font-bold">
-                    +{(item.contribution * 100).toFixed(0)}% Weight
-                  </span>
-                </div>
-                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-brand-800 h-2 rounded-full"
-                    style={{ width: `${item.contribution * 100}%` }}
-                  />
-                </div>
-                <div className="text-[11px] text-slate-500 flex justify-between">
-                  <span>{item.direction}</span>
-                  <span className="text-[10px] text-slate-400">Validated against training split</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-start space-x-2">
-            <Info className="w-4 h-4 text-brand-700 flex-shrink-0 mt-0.5" />
-            <p>
-              <strong>Important Clinical Distinction:</strong> These attribution scores describe mathematical contributions to the model output function. They do <em>not</em> claim physiological causation.
-            </p>
-          </div>
+        <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5">
+          <span className="text-[11px] text-slate-500">Thresholded classification</span>
+          <div className="text-2xl font-bold text-slate-900">{result.predicted_label}</div>
+          <p className="text-[11px] text-slate-500 mt-1">Threshold used: {(prediction.decision_threshold_applied * 100).toFixed(0)}%</p>
+        </div>
+        <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5">
+          <span className="text-[11px] text-slate-500">Prototype model category</span>
+          <div className="text-2xl font-bold text-slate-900">{result.risk_stratification?.risk_level || 'Not available'}</div>
+          <p className="text-[11px] text-slate-500 mt-1">The category is not medically validated.</p>
         </div>
       </div>
 
-      {/* Expandable Technical Details */}
-      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
-        <button
-          onClick={() => setShowTechnical(!showTechnical)}
-          className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-700"
-        >
-          <div className="flex items-center space-x-2">
-            <Atom className="w-4 h-4 text-quantum-600" />
-            <span>Technical Quantum & Classical Execution Metadata</span>
-          </div>
-          {showTechnical ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-
-        {showTechnical && (
-          <div className="pt-3 border-t border-slate-100 space-y-3 text-xs text-slate-600">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <span className="font-bold text-slate-800 block">Classifier Engine</span>
-                <span className="font-mono text-slate-600">PennyLane Variational Quantum Classifier (4 Qubits)</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <span className="font-bold text-slate-800 block">Backend Device</span>
-                <span className="font-mono text-slate-600">default.qubit Statevector Simulator</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <span className="font-bold text-slate-800 block">Ansatz Architecture</span>
-                <span className="font-mono text-slate-600">2-Layer Linear CNOT Entanglement with Pauli-Z Pooling</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <span className="font-bold text-slate-800 block">Data Leakage Verification</span>
-                <span className="font-mono text-emerald-700">PASSED: Scaler bounds fit strictly on train set</span>
-              </div>
-            </div>
-          </div>
-        )}
+      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Feature values sent to the model</h2>
+          <p className="text-[11px] text-slate-500 mt-1">The saved preprocessing transformer applies the same encoding and scaling used during training.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 text-slate-600 uppercase text-[10px]"><tr><th className="py-2 px-3">Feature</th><th className="py-2 px-3">Submitted value</th><th className="py-2 px-3">Used by selected model</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {result.input_features_used.map((feature) => (
+                <tr key={feature}><td className="py-2 px-3 font-mono font-semibold">{feature}</td><td className="py-2 px-3">{inputs[feature] == null ? 'Missing' : String(inputs[feature])}</td><td className="py-2 px-3">Yes</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-start gap-2">
+          <Lightbulb className="w-4 h-4 text-brand-700 flex-shrink-0 mt-0.5" />
+          <p>Feature-level attribution values are not produced by the current training run. The panel reports the real inputs, score, threshold, and saved pipeline provenance without assigning unsupported per-feature contributions.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="p-3 bg-slate-50 rounded-lg"><span className="font-bold text-slate-800 block">Preprocessing run</span><span className="font-mono text-slate-600 break-all">{prediction.preprocessing_run_id || 'Not recorded'}</span></div>
+          <div className="p-3 bg-slate-50 rounded-lg"><span className="font-bold text-slate-800 block">Feature-selection run</span><span className="font-mono text-slate-600 break-all">{prediction.feature_selection_run_id || 'Not recorded'}</span></div>
+        </div>
       </div>
 
-      {/* Medical Safety Notice */}
+      <div className="flex justify-end"><Link to="/predictions" className="btn-primary text-xs flex items-center gap-2">Return to predictions<ArrowRight className="w-3.5 h-3.5" /></Link></div>
       <MedicalNotice />
     </div>
   );

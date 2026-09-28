@@ -20,11 +20,16 @@ const RANKING_METHODS = [
   { id: 'mutual_info', label: 'Mutual Information', desc: 'Captures non-linear dependence with target' },
   { id: 'random_forest', label: 'Random Forest Gini', desc: 'Ensemble decision tree feature importances' },
   { id: 'f_classif', label: 'ANOVA F-Test', desc: 'Linear statistical variance ratio analysis' },
+  { id: 'lasso', label: 'L1 Logistic (LASSO)', desc: 'Sparse classification coefficients' },
+  { id: 'manual', label: 'Manual', desc: 'Choose the dataset columns directly' },
 ];
 
 export const FeatureSelectionPage: React.FC = () => {
   const [selectedMethod, setSelectedMethod] = useState('mutual_info');
   const [kFeatures, setKFeatures] = useState<number>(4);
+  const [targetColumn, setTargetColumn] = useState(() => sessionStorage.getItem('activeTargetColumn') || '');
+  const [targetVersionId, setTargetVersionId] = useState(() => sessionStorage.getItem('activeDatasetVersionId') || '');
+  const [manualFeatures, setManualFeatures] = useState<string[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
   const [savedRun, setSavedRun] = useState<FeatureSelectionRun | null>(null);
 
@@ -33,8 +38,12 @@ export const FeatureSelectionPage: React.FC = () => {
     queryFn: datasetsApi.list,
   });
 
-  const selectedDataset = datasets?.find((d) => d.id === selectedDatasetId) || datasets?.[0];
-  const activeVersion = selectedDataset?.versions?.[0];
+  const storedVersionId = sessionStorage.getItem('activeDatasetVersionId');
+  const selectedDataset = datasets?.find((d) => d.id === selectedDatasetId)
+    || datasets?.find((d) => d.versions?.some((version) => version.id === storedVersionId))
+    || datasets?.[0];
+  const activeVersion = selectedDataset?.versions?.find((version) => version.id === storedVersionId)
+    || [...(selectedDataset?.versions || [])].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
 
   const selectFeaturesMutation = useMutation({
     mutationFn: async () => {
@@ -43,35 +52,54 @@ export const FeatureSelectionPage: React.FC = () => {
         dataset_version_id: activeVersion.id,
         ranking_method: selectedMethod,
         k_features: kFeatures,
+        target_column: targetColumn,
+        selected_features: selectedMethod === 'manual' ? manualFeatures : undefined,
       });
     },
     onSuccess: (data) => {
       setSavedRun(data);
+      if (activeVersion) {
+        sessionStorage.setItem('activeDatasetVersionId', activeVersion.id);
+        sessionStorage.setItem('activeFeatureSelectionRunId', data.id);
+        sessionStorage.setItem('activeSelectedFeatures', JSON.stringify(data.selected_features));
+        sessionStorage.setItem('activeTargetColumn', targetColumn);
+      }
     },
   });
 
-  // Default initial scores based on actual experimental cancer study
-  const initialFeatureScores: Record<string, number> = {
-    WHEEZING: 0.142,
-    YELLOW_FINGERS: 0.138,
-    AGE: 0.119,
-    SHORTNESS_OF_BREATH: 0.105,
-    PEER_PRESSURE: 0.088,
-    FATIGUE: 0.082,
-    CHEST_PAIN: 0.076,
-    COUGHING: 0.071,
-    SMOKING: 0.065,
-    ALCOHOL_CONSUMING: 0.058,
-    ANXIETY: 0.052,
-    ALLERGY: 0.048,
-    CHRONIC_DISEASE: 0.041,
-    SWALLOWING_DIFFICULTY: 0.035,
-  };
+  // Fetch analysis for the selected dataset to know the columns
+  const { data: analysis } = useQuery({
+    queryKey: ['datasetAnalysis', selectedDataset?.id, activeVersion?.id],
+    queryFn: () =>
+      selectedDataset?.id && activeVersion?.id
+        ? datasetsApi.analyzeVersion(selectedDataset.id, activeVersion.id)
+        : Promise.reject('No version'),
+    enabled: !!selectedDataset?.id && !!activeVersion?.id,
+  });
 
-  const currentScores = savedRun?.ranking_scores || initialFeatureScores;
+  const availableFeatureColumns = (analysis?.columns || []).filter((column) => column !== targetColumn);
+  const targetCandidates = analysis?.columns || [];
+
+  React.useEffect(() => {
+    if (analysis?.columns?.length && analysis.version_id !== targetVersionId) {
+      setTargetColumn(analysis.target_column || analysis.columns[analysis.columns.length - 1]);
+      setTargetVersionId(analysis.version_id);
+    } else if (analysis?.columns?.length && (!targetColumn || !analysis.columns.includes(targetColumn))) {
+      setTargetColumn(analysis.target_column || analysis.columns[analysis.columns.length - 1]);
+    }
+  }, [analysis?.version_id, analysis?.target_column, analysis?.columns, targetColumn, targetVersionId]);
+
+  React.useEffect(() => {
+    const max = Math.min(8, Math.max(1, availableFeatureColumns.length));
+    setKFeatures((current) => Math.min(current, max));
+    setManualFeatures((current) => current.filter((column) => availableFeatureColumns.includes(column)));
+    setSavedRun(null);
+  }, [activeVersion?.id, targetColumn]);
+
+  const currentScores = savedRun?.ranking_scores || {};
   const sortedFeatures = Object.entries(currentScores).sort((a, b) => b[1] - a[1]);
-  const maxScore = Math.max(...Object.values(currentScores));
-  const selectedFeatureNames = savedRun
+  const maxScore = sortedFeatures.length > 0 ? sortedFeatures[0][1] : 1;
+  const selectedFeatureNames = selectedMethod === 'manual' ? manualFeatures : savedRun
     ? savedRun.selected_features
     : sortedFeatures.slice(0, kFeatures).map((item) => item[0]);
 
@@ -116,7 +144,53 @@ export const FeatureSelectionPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Controls: Ranking Method & K-Feature Slider */}
+      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label className="space-y-1 text-xs font-semibold text-slate-700">
+          Uploaded dataset
+          <select
+            value={selectedDataset?.id || ''}
+            onChange={(event) => {
+              setSelectedDatasetId(event.target.value);
+              setSavedRun(null);
+              sessionStorage.removeItem('activeDatasetVersionId');
+              sessionStorage.removeItem('activePreprocessingRunId');
+              sessionStorage.removeItem('activeFeatureSelectionRunId');
+              sessionStorage.removeItem('activeSelectedFeatures');
+              sessionStorage.removeItem('activeTargetColumn');
+            }}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white font-normal"
+          >
+            {(datasets || []).map((dataset) => (
+              <option key={dataset.id} value={dataset.id}>{dataset.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1 text-xs font-semibold text-slate-700">
+          Target column
+          <select
+            value={targetColumn}
+            onChange={(event) => {
+              setTargetColumn(event.target.value);
+              setSavedRun(null);
+              sessionStorage.setItem('activeTargetColumn', event.target.value);
+              sessionStorage.removeItem('activePreprocessingRunId');
+              sessionStorage.removeItem('activeFeatureSelectionRunId');
+              sessionStorage.removeItem('activeSelectedFeatures');
+            }}
+            disabled={!targetCandidates.length}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white font-normal"
+          >
+            {targetCandidates.map((column) => <option key={column} value={column}>{column}</option>)}
+          </select>
+        </label>
+        {analysis && (
+          <p className="md:col-span-2 text-[11px] text-slate-500">
+            {analysis.row_count} uploaded rows · {availableFeatureColumns.length} candidate feature columns · {activeVersion?.version_tag}
+          </p>
+        )}
+      </div>
+
+      {/* Controls: Ranking Method & Feature Count */}
       <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Method Selection */}
@@ -124,7 +198,7 @@ export const FeatureSelectionPage: React.FC = () => {
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
               Biomarker Ranking Algorithm
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
               {RANKING_METHODS.map((m) => (
                 <button
                   key={m.id}
@@ -156,18 +230,17 @@ export const FeatureSelectionPage: React.FC = () => {
             <div className="pt-2">
               <input
                 type="range"
-                min="2"
-                max="8"
-                step="2"
-                value={kFeatures}
+                min="1"
+                max={Math.max(1, Math.min(8, availableFeatureColumns.length))}
+                step="1"
+                value={Math.min(kFeatures, Math.max(1, Math.min(8, availableFeatureColumns.length)))}
                 onChange={(e) => setKFeatures(parseInt(e.target.value, 10))}
                 className="w-full accent-brand-800 cursor-pointer"
+                disabled={!availableFeatureColumns.length || selectedMethod === 'manual'}
               />
               <div className="flex justify-between text-[11px] text-slate-400 font-mono mt-1">
-                <span>2 (Fast VQC)</span>
-                <span className="font-semibold text-brand-800">4 (Recommended &bull; 4-Qubit VQC)</span>
-                <span>6 (6-Qubit VQC)</span>
-                <span>8 (8-Qubit VQC)</span>
+                <span>1</span>
+                <span className="font-semibold text-brand-800">Up to {Math.min(8, availableFeatureColumns.length)} features in this dataset</span>
               </div>
             </div>
           </div>
@@ -177,21 +250,25 @@ export const FeatureSelectionPage: React.FC = () => {
           <div className="text-xs text-slate-500">
             Selected Dataset:{' '}
             <span className="font-semibold text-slate-800">
-              {selectedDataset?.name || 'Lung Cancer Benchmark Cohort'}
+              {selectedDataset?.name || 'Select an uploaded dataset'}
             </span>
           </div>
           <button
             onClick={() => selectFeaturesMutation.mutate()}
-            disabled={selectFeaturesMutation.isPending || !activeVersion}
+            disabled={selectFeaturesMutation.isPending || !activeVersion || !targetColumn || (selectedMethod === 'manual' && manualFeatures.length === 0)}
             className="btn-primary text-xs py-2 px-5 flex items-center space-x-2"
           >
             <Filter className="w-3.5 h-3.5" />
-            <span>
-              {selectFeaturesMutation.isPending ? 'Computing Ranking Scores...' : 'Lock Canonical Feature Set'}
-            </span>
+            <span>{selectFeaturesMutation.isPending ? 'Computing from Uploaded Data...' : selectedMethod === 'manual' ? 'Save Selected Columns' : 'Rank & Select Features'}</span>
           </button>
         </div>
       </div>
+
+      {selectFeaturesMutation.isError && (
+        <div className="p-3 rounded-lg border border-red-200 bg-red-50 text-xs text-red-800">
+          {selectFeaturesMutation.error instanceof Error ? selectFeaturesMutation.error.message : 'Feature selection failed for this dataset.'}
+        </div>
+      )}
 
       {/* Selected Features Preview Badge Row */}
       <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
@@ -200,12 +277,24 @@ export const FeatureSelectionPage: React.FC = () => {
             Canonical Selected Features (Source of Truth)
           </h3>
           <span className="text-[11px] font-mono text-slate-400">
-            Compatible with {kFeatures}-Qubit PennyLane VQC & SVM
+            {selectedFeatureNames.length} columns selected from this dataset
           </span>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {selectedFeatureNames.map((feat, idx) => (
+          {selectedMethod === 'manual' ? availableFeatureColumns.map((feat) => (
+            <label key={feat} className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-xs">
+              <input
+                type="checkbox"
+                checked={manualFeatures.includes(feat)}
+                onChange={(event) => setManualFeatures((current) => event.target.checked
+                  ? [...current, feat]
+                  : current.filter((column) => column !== feat))}
+                className="accent-brand-800"
+              />
+              <span className="font-mono">{feat}</span>
+            </label>
+          )) : selectedFeatureNames.map((feat, idx) => (
             <div
               key={feat}
               className="flex items-center space-x-2 px-3 py-1.5 bg-brand-50 border border-brand-200 rounded-lg text-xs font-semibold text-brand-900 shadow-sm"
@@ -241,7 +330,11 @@ export const FeatureSelectionPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {sortedFeatures.map(([feat, score], index) => {
+              {sortedFeatures.length === 0 ? (
+                <tr><td colSpan={5} className="p-8 text-center text-slate-500">
+                  {selectedMethod === 'manual' ? 'Manual column selection is enabled above.' : 'Choose a ranking method and run it to see scores from the uploaded dataset.'}
+                </td></tr>
+              ) : sortedFeatures.map(([feat, score], index) => {
                 const isSelected = selectedFeatureNames.includes(feat);
                 const percent = ((score / maxScore) * 100).toFixed(0);
                 return (

@@ -5,18 +5,16 @@ import {
   ArrowRight,
   ShieldCheck,
   RotateCcw,
-  Sparkles,
   Lightbulb,
-  CheckCircle2,
-  AlertTriangle,
 } from 'lucide-react';
 import { PredictionResponse } from '../../types';
 import { MedicalNotice } from '../../components/common/MedicalNotice';
+import { EmptyState } from '../../components/common/EmptyState';
 
 export const PredictionDetailPage: React.FC = () => {
   const { predictionId } = useParams<{ predictionId: string }>();
 
-  // Retrieve stored prediction from sessionStorage or provide fallback
+  // Retrieve the actual prediction generated in this session.
   let predictionData: PredictionResponse | null = null;
   const stored = sessionStorage.getItem('latest_prediction');
   if (stored) {
@@ -27,18 +25,12 @@ export const PredictionDetailPage: React.FC = () => {
     }
   }
 
-  const result = predictionData?.results?.[0] || {
-    predicted_class: 1,
-    predicted_label: 'POSITIVE',
-    probability: 0.824,
-    risk_stratification: { risk_level: 'HIGH', score: 0.824 },
-    input_features_used: ['WHEEZING', 'YELLOW_FINGERS', 'AGE', 'SHORTNESS_OF_BREATH'],
-    sample_id: 'sample-1',
-  };
+  const result = predictionData?.results?.[0];
+  if (!result) return <EmptyState icon={Activity} title="No prediction result" description="Run an inference with a trained model to view its actual score and selected input features." />;
 
-  const isHighRisk = result.risk_stratification.risk_level === 'HIGH';
-  const isMediumRisk = result.risk_stratification.risk_level === 'MEDIUM';
-  const isLowRisk = result.risk_stratification.risk_level === 'LOW';
+  const riskLevel = result.risk_stratification?.risk_level;
+  const isHighRisk = riskLevel === 'HIGH';
+  const isMediumRisk = riskLevel === 'MEDIUM';
 
   const riskBadgeStyles = isHighRisk
     ? 'bg-red-50 text-red-700 border-red-200'
@@ -46,7 +38,7 @@ export const PredictionDetailPage: React.FC = () => {
     ? 'bg-amber-50 text-amber-700 border-amber-200'
     : 'bg-emerald-50 text-emerald-700 border-emerald-200';
 
-  const probPercent = (result.probability * 100).toFixed(1);
+  const probPercent = result.probability == null ? null : (result.probability * 100).toFixed(1);
 
   return (
     <div className="space-y-6">
@@ -58,14 +50,14 @@ export const PredictionDetailPage: React.FC = () => {
               Evaluation Reference: {predictionId || 'latest-screening'}
             </span>
             <span className={`badge border font-semibold ${riskBadgeStyles}`}>
-              Risk Level: {result.risk_stratification.risk_level}
+              Model category: {riskLevel || 'Unavailable'}
             </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
             Clinical Screening Assessment
           </h1>
           <p className="text-xs text-slate-500">
-            Model inference probability distribution and risk category stratification
+            Actual model output and its configurable classification threshold
           </p>
         </div>
 
@@ -98,7 +90,7 @@ export const PredictionDetailPage: React.FC = () => {
                   result.predicted_class === 1 ? 'text-red-700' : 'text-emerald-700'
                 }`}
               >
-                {result.predicted_label === 'POSITIVE' ? 'Positive Indication' : 'Negative Indication'}
+              {result.predicted_label}
               </span>
               <span className="text-xs text-slate-500 font-mono">
                 Class {result.predicted_class}
@@ -109,10 +101,10 @@ export const PredictionDetailPage: React.FC = () => {
           <div className="flex items-center space-x-6 text-right">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
-                Estimated Probability
+                Model Score
               </span>
               <span className="text-3xl font-extrabold text-slate-900 font-mono">
-                {probPercent}%
+                {probPercent == null ? 'Unavailable' : `${probPercent}%`}
               </span>
             </div>
             <div>
@@ -120,7 +112,7 @@ export const PredictionDetailPage: React.FC = () => {
                 Stratified Category
               </span>
               <span className={`badge text-sm px-3 py-1 font-bold border mt-0.5 ${riskBadgeStyles}`}>
-                {result.risk_stratification.risk_level} RISK
+                {riskLevel || 'Unavailable'}
               </span>
             </div>
           </div>
@@ -129,15 +121,15 @@ export const PredictionDetailPage: React.FC = () => {
         {/* Accessible Probability Visualizer */}
         <div className="space-y-2">
           <div className="flex justify-between text-xs font-semibold text-slate-700">
-            <span>Disease Likelihood Score</span>
-            <span className="font-mono">{result.probability.toFixed(4)}</span>
+            <span>Model score</span>
+            <span className="font-mono">{result.probability == null ? 'Unavailable' : result.probability.toFixed(4)}</span>
           </div>
           <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden p-0.5 border border-slate-200">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
                 isHighRisk ? 'bg-red-500' : isMediumRisk ? 'bg-amber-500' : 'bg-emerald-500'
               }`}
-              style={{ width: `${probPercent}%` }}
+              style={{ width: `${probPercent || 0}%` }}
             />
           </div>
           <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-1">

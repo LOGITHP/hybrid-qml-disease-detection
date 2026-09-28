@@ -252,24 +252,24 @@ export const DatasetListPage: React.FC = () => {
               </div>
 
               {/* Drag and Drop Box */}
-              <div className="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-6 text-center space-y-2 bg-slate-50/50 transition-colors">
+              <div className="relative border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-6 text-center space-y-2 bg-slate-50/50 transition-colors">
                 <UploadCloud className="w-8 h-8 text-slate-400 mx-auto" />
                 <div className="text-xs text-slate-600">
-                  <label className="font-semibold text-brand-800 hover:underline cursor-pointer">
+                  <span className="font-semibold text-brand-800 hover:underline">
                     Browse local CSV file
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          setSelectedFile(e.target.files[0]);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </label>{' '}
-                  or drag and drop here
+                  </span>
+                  {' '}or drag and drop here
                 </div>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setSelectedFile(e.target.files[0]);
+                    }
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
                 {selectedFile && (
                   <div className="mt-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 py-1.5 px-3 rounded-lg inline-flex items-center space-x-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5" />

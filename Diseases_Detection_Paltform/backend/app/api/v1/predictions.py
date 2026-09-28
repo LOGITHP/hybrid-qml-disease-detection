@@ -6,6 +6,7 @@ from typing import List
 from fastapi import APIRouter, Depends
 import joblib
 import numpy as np
+import pandas as pd
 from app.core.dependencies import get_current_user, get_model_service
 from app.core.exceptions import ResourceNotFoundError, ValidationError
 from app.database.models.user import User
@@ -43,28 +44,31 @@ async def generate_prediction(
 
     model = bundle["model"]
     selected_features = bundle["selected_features"]
-    feature_bounds = bundle["feature_bounds"]
+    preprocessor = bundle.get("preprocessor")
+    feature_bounds = bundle.get("feature_bounds")
 
     raw_items = payload.features if isinstance(payload.features, list) else [payload.features]
     results: List[SinglePredictionResult] = []
     threshold = payload.decision_threshold if payload.decision_threshold is not None else 0.5
 
     for idx, item in enumerate(raw_items):
-        # Extract features according to canonical selected_features ordering
-        vals = []
-        for feat in selected_features:
-            vals.append(float(item.get(feat, 0.0)))
-        x_raw = np.array(vals)
-
-        # Scale to [0, 1] using stored training bounds
-        min_vals = np.array(feature_bounds["min"])
-        max_vals = np.array(feature_bounds["max"])
-        range_diff = np.where(max_vals - min_vals == 0, 1.0, max_vals - min_vals)
-        x_scaled = (x_raw - min_vals) / range_diff
-        x_scaled = np.clip(x_scaled, 0.0, 1.0)
+        # Reuse the exact preprocessing pipeline fitted on the selected training split.
+        raw_features = {feature: item.get(feature) for feature in selected_features}
+        if preprocessor is not None:
+            raw_frame = pd.DataFrame([raw_features]).replace({None: np.nan})
+            x_model = preprocessor.transform(raw_frame)
+        elif feature_bounds is not None:
+            # Backward compatibility for model artifacts saved before schema-aware preprocessing.
+            x_raw = np.asarray([float(raw_features.get(feature) or 0.0) for feature in selected_features])
+            min_vals = np.asarray(feature_bounds["min"])
+            max_vals = np.asarray(feature_bounds["max"])
+            range_diff = np.where(max_vals - min_vals == 0, 1.0, max_vals - min_vals)
+            x_model = np.clip((x_raw - min_vals) / range_diff, 0.0, 1.0).reshape(1, -1)
+        else:
+            raise ResourceNotFoundError("ModelPreprocessor", artifact_rel_path)
 
         # Compute probability
-        proba = float(model.predict_proba(np.array([x_scaled]))[0])
+        proba = float(model.predict_proba(x_model)[0])
         pred_class = int(proba >= threshold)
         pred_label = "POSITIVE" if pred_class == 1 else "NEGATIVE"
 
@@ -94,6 +98,8 @@ async def generate_prediction(
 
     return PredictionResponse(
         model_id=str(model_obj.id),
+        preprocessing_run_id=bundle.get("preprocessing_run_id"),
+        feature_selection_run_id=bundle.get("feature_selection_run_id"),
         decision_threshold_applied=threshold,
         results=results,
         timestamp=datetime.now(timezone.utc),

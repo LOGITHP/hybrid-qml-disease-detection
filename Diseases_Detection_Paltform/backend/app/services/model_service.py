@@ -25,21 +25,29 @@ class ModelService:
         model = await self.model_repo.get_by_id(model_id)
         if not model:
             raise ResourceNotFoundError("Model", model_id)
+        if model.user_id != user_id and not model.is_default and not is_admin:
+            raise ResourceNotFoundError("Model", model_id)
         return model
 
     async def seed_default_models(self):
         defaults = [
-            Model(name="SVM Linear Baseline", model_type="svm_linear", description="Baseline SVM Linear", is_default=True, status="active"),
-            Model(name="PennyLane VQC Basic", model_type="vqc", description="Basic VQC", is_default=True, status="active"),
+            Model(user_id="system", name="Linear SVM Tabular Baseline", model_type="svm_linear", description="Built-in tabular baseline. The estimator is trained on the selected uploaded dataset.", is_default=True, status="active"),
+            Model(user_id="system", name="RBF SVM Tabular Baseline", model_type="svm_rbf", description="Built-in non-linear tabular baseline. The estimator is trained on the selected uploaded dataset.", is_default=True, status="active"),
+            Model(user_id="system", name="PennyLane VQC", model_type="vqc", description="Built-in variational quantum classifier trained on the selected uploaded dataset.", is_default=True, status="active"),
         ]
         results = []
         for d in defaults:
             # Upsert or ignore
-            existing = await Model.find_one({"name": d.name})
+            existing = await Model.find_one({"name": d.name, "user_id": "system", "is_default": True})
             if not existing:
                 res = await self.model_repo.create(d)
                 results.append(res)
             else:
+                existing.model_type = d.model_type
+                existing.description = d.description
+                existing.is_default = True
+                existing.status = "active"
+                await self.model_repo.update(existing)
                 results.append(existing)
         return results
 

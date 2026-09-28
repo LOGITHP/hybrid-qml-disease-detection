@@ -7,7 +7,7 @@ class ModelRepository:
         return await Model.get(model_id)
         
     async def list_by_user(self, user_id: str) -> List[Model]:
-        return await Model.find(Model.user_id == user_id).to_list()
+        return await Model.find({"user_id": {"$in": [user_id, "system"]}}).to_list()
         
     async def create(self, model: Model) -> Model:
         return await model.insert()

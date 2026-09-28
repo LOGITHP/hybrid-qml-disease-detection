@@ -49,25 +49,10 @@ export const DatasetDetailPage: React.FC = () => {
     );
   }
 
-  // Schema columns fallback
-  const columns = latestVersion?.dataset_metadata?.columns || [
-    'AGE',
-    'GENDER',
-    'SMOKING',
-    'YELLOW_FINGERS',
-    'ANXIETY',
-    'PEER_PRESSURE',
-    'CHRONIC_DISEASE',
-    'FATIGUE',
-    'ALLERGY',
-    'WHEEZING',
-    'ALCOHOL_CONSUMING',
-    'COUGHING',
-    'SHORTNESS_OF_BREATH',
-    'SWALLOWING_DIFFICULTY',
-    'CHEST_PAIN',
-    'LUNG_CANCER',
-  ];
+  const columns = analysis?.columns || [];
+  const targetCol = analysis?.target_column || 'Unknown Target';
+  const totalRows = analysis?.row_count || latestVersion?.row_count || 0;
+  const totalCols = analysis?.column_count || latestVersion?.column_count || 0;
 
   return (
     <div className="space-y-6">
@@ -131,16 +116,16 @@ export const DatasetDetailPage: React.FC = () => {
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div className="p-3 bg-slate-50 rounded-lg">
-                  <span className="text-slate-400 block text-[11px]">Total Patients</span>
-                  <span className="text-lg font-bold text-slate-900">{latestVersion?.row_count || 309}</span>
+                  <span className="text-slate-400 block text-[11px]">Rows</span>
+                  <span className="text-lg font-bold text-slate-900">{totalRows}</span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-lg">
-                  <span className="text-slate-400 block text-[11px]">Total Biomarkers</span>
-                  <span className="text-lg font-bold text-slate-900">{latestVersion?.column_count || 16}</span>
+                  <span className="text-slate-400 block text-[11px]">Columns</span>
+                  <span className="text-lg font-bold text-slate-900">{totalCols}</span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-lg">
-                  <span className="text-slate-400 block text-[11px]">Disease Target</span>
-                  <span className="text-lg font-bold text-brand-800">LUNG_CANCER</span>
+                  <span className="text-slate-400 block text-[11px]">Suggested Target</span>
+                  <span className="text-lg font-bold text-brand-800">{targetCol}</span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <span className="text-slate-400 block text-[11px]">Active Version</span>
@@ -150,8 +135,8 @@ export const DatasetDetailPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed pt-2">
-                This clinical dataset is indexed as an immutable artifact in the storage repository.
-                All numerical features and categorical indicators are strictly validated prior to feature ranking.
+                Uploaded file: <span className="font-mono">{analysis?.file_metadata?.filename || latestVersion?.dataset_metadata?.filename || 'Loading file metadata'}</span>
+                {analysis?.file_metadata?.file_size_bytes != null && ` · ${(analysis.file_metadata.file_size_bytes / 1024).toFixed(1)} KB`}
               </p>
             </div>
           </div>
@@ -182,18 +167,22 @@ export const DatasetDetailPage: React.FC = () => {
                 <th className="py-3 px-6">Data Type</th>
                 <th className="py-3 px-6">Missing Count</th>
                 <th className="py-3 px-6">Role</th>
+                <th className="py-3 px-6">Summary / Distribution</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {columns.map((col) => {
-                const isTarget = col === 'LUNG_CANCER';
+                const isTarget = col === targetCol;
+                const profile = analysis?.column_profiles?.[col];
+                const missingCount = analysis?.missing_value_counts?.[col] || 0;
+                const missingPct = totalRows > 0 ? ((missingCount / totalRows) * 100).toFixed(1) : '0.0';
                 return (
                   <tr key={col} className="hover:bg-slate-50/70">
                     <td className="py-3 px-6 font-mono font-medium text-slate-900">{col}</td>
                     <td className="py-3 px-6 text-slate-500">
-                      {col === 'GENDER' ? 'categorical (str)' : 'numerical (int64)'}
+                      {analysis?.dtypes?.[col] || profile?.dtype || '—'}
                     </td>
-                    <td className="py-3 px-6 text-slate-500">0 (0.0%)</td>
+                    <td className="py-3 px-6 text-slate-500">{missingCount} ({missingPct}%)</td>
                     <td className="py-3 px-6">
                       {isTarget ? (
                         <span className="badge bg-red-50 text-red-700 border border-red-200 font-semibold">
@@ -204,6 +193,22 @@ export const DatasetDetailPage: React.FC = () => {
                           Biomarker Feature
                         </span>
                       )}
+                    </td>
+                    <td className="py-3 px-6 text-slate-500 min-w-64">
+                      {profile?.statistics && Object.keys(profile.statistics).length > 0 && (
+                        <div className="mb-1 font-mono text-[10px]">
+                          {Object.entries(profile.statistics).map(([key, value]) => `${key}: ${value ?? '—'}`).join(' · ')}
+                        </div>
+                      )}
+                      {profile?.distribution?.length ? (
+                        <div className="flex flex-wrap gap-1">
+                          {profile.distribution.slice(0, 6).map((item, index) => (
+                            <span key={`${col}-${index}`} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono">
+                              {item.value !== undefined ? `${item.value ?? 'Missing'} (${item.count})` : `${item.lower}–${item.upper} (${item.count})`}
+                            </span>
+                          ))}
+                        </div>
+                      ) : <span>—</span>}
                     </td>
                   </tr>
                 );
@@ -224,18 +229,20 @@ export const DatasetDetailPage: React.FC = () => {
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center space-x-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                 <div className="text-xs">
-                  <span className="font-bold text-emerald-900 block">Zero Missing Values Detected</span>
+                  <span className="font-bold text-emerald-900 block">Missing Values</span>
                   <span className="text-emerald-700">
-                    All 309 patient records contain complete biomarker telemetry.
+                    {Object.values(analysis?.missing_value_counts || {}).some(v => v > 0) 
+                      ? 'Some missing values detected in the dataset.'
+                      : `No missing values in ${totalRows} uploaded rows.`}
                   </span>
                 </div>
               </div>
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center space-x-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                 <div className="text-xs">
-                  <span className="font-bold text-emerald-900 block">Identifier Columns Cleared</span>
+                  <span className="font-bold text-emerald-900 block">Duplicate Rows</span>
                   <span className="text-emerald-700">
-                    No PII (Medical Record Numbers, names) detected in tabular schema.
+                    {analysis?.duplicate_row_count ?? '—'} identical rows detected in the uploaded file.
                   </span>
                 </div>
               </div>
@@ -247,27 +254,35 @@ export const DatasetDetailPage: React.FC = () => {
               Class Distribution & Imbalance
             </h3>
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between font-medium">
-                <span>Positive Cases (LUNG_CANCER = 1)</span>
-                <span className="text-slate-900 font-bold">270 (87.4%)</span>
-              </div>
-              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                <div className="bg-red-500 h-2.5 rounded-full" style={{ width: '87.4%' }}></div>
-              </div>
-              <div className="flex justify-between font-medium pt-2">
-                <span>Negative Cases (LUNG_CANCER = 0)</span>
-                <span className="text-slate-900 font-bold">39 (12.6%)</span>
-              </div>
-              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-2.5 rounded-full" style={{ width: '12.6%' }}></div>
-              </div>
-              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start space-x-2 text-[11px] text-amber-800">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
-                <span>
-                  <strong>Moderate Class Imbalance:</strong> AI Preprocessing Agent will recommend Stratified
-                  K-Fold / Stratified Partitioning to preserve disease prevalence across train and test sets.
-                </span>
-              </div>
+              {analysis?.class_distribution ? (
+                Object.entries(analysis.class_distribution).map(([cls, count], idx) => {
+                  const pct = totalRows > 0 ? (count / totalRows) * 100 : 0;
+                  const colorClass = idx === 0 ? 'bg-red-500' : (idx === 1 ? 'bg-emerald-500' : 'bg-blue-500');
+                  return (
+                    <div key={cls}>
+                      <div className="flex justify-between font-medium">
+                        <span>Class {cls}</span>
+                        <span className="text-slate-900 font-bold">{count} ({pct.toFixed(1)}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-2">
+                        <div className={`${colorClass} h-2.5 rounded-full`} style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-slate-500 italic">No class distribution available for target.</div>
+              )}
+              
+              {analysis?.class_distribution && Object.keys(analysis.class_distribution).length > 0 && (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start space-x-2 text-[11px] text-amber-800">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
+                  <span>
+                    <strong>Class Imbalance Analyzed:</strong> AI Preprocessing Agent will recommend Stratified
+                    K-Fold / Stratified Partitioning to preserve disease prevalence across train and test sets.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

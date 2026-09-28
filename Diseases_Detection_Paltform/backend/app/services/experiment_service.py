@@ -29,11 +29,44 @@ class ExperimentService:
         self.storage = storage or artifact_storage
 
     async def create_experiment(
-        self, user_id: str, name: str, description: Optional[str] = None, tags: Optional[List[str]] = None
+        self,
+        user_id: str,
+        name: str,
+        description: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        dataset_id: Optional[str] = None,
+        dataset_version_id: Optional[str] = None,
+        dataset_name: Optional[str] = None,
+        preprocessing_run_id: Optional[str] = None,
+        feature_selection_run_id: Optional[str] = None,
+        target_column: Optional[str] = None,
+        selected_features: Optional[List[str]] = None,
     ) -> Experiment:
         """Create an experiment study container."""
-        exp = Experiment(user_id=user_id, name=name, description=description, tags=tags or [], status="active")
+        exp = Experiment(
+            user_id=user_id,
+            name=name,
+            description=description,
+            tags=tags or [],
+            dataset_id=dataset_id,
+            dataset_version_id=dataset_version_id,
+            dataset_name=dataset_name,
+            preprocessing_run_id=preprocessing_run_id,
+            feature_selection_run_id=feature_selection_run_id,
+            target_column=target_column,
+            selected_features=selected_features or [],
+            status="active",
+        )
         return await self.experiment_repo.create(exp)
+
+    async def list_user_experiments(self, user_id: str) -> List[Experiment]:
+        return await self.experiment_repo.list_by_user(user_id)
+
+    async def get_user_experiment(self, experiment_id: str, user_id: str, is_admin: bool = False) -> Experiment:
+        experiment = await self.experiment_repo.get_by_id(experiment_id)
+        if not experiment or (experiment.user_id != user_id and not is_admin):
+            raise ResourceNotFoundError("Experiment", experiment_id)
+        return experiment
 
     async def generate_comparative_report(
         self, user_id: str, experiment_id: str, training_run_ids: List[str]
@@ -67,10 +100,12 @@ class ExperimentService:
 
         for item in runs_data:
             m = item["metrics"]
+            auc_value = m.get("roc_auc")
+            auc_text = f"{auc_value:.4f}" if isinstance(auc_value, (int, float)) else "N/A"
             md_lines.append(
                 f"| **{item['model_name']}** | `{item['model_type']}` | {m.get('accuracy', 0):.4f} | "
                 f"{m.get('sensitivity', 0):.4f} | {m.get('specificity', 0):.4f} | {m.get('f1_score', 0):.4f} | "
-                f"{m.get('roc_auc', 0):.4f} | {m.get('training_duration_seconds', 0)}s |"
+                f"{auc_text} | {m.get('training_duration_seconds', 0)}s |"
             )
 
         md_lines.extend(

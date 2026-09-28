@@ -16,12 +16,16 @@ async def start_training_run(
     current_user: User = Depends(get_current_user),
     service: TrainingService = Depends(get_training_service),
 ):
-    """Execute model training (SVM Linear, SVM RBF, or PennyLane VQC)."""
+    """Train a built-in model against the uploaded dataset and saved pipeline runs."""
     run = await service.execute_training_run(
         user_id=str(current_user.id),
         model_id=payload.model_id,
         dataset_version_id=payload.dataset_version_id,
         feature_selection_run_id=payload.feature_selection_run_id,
+        preprocessing_run_id=payload.preprocessing_run_id,
+        hyperparameters=payload.hyperparameters,
+        is_noisy_quantum=payload.is_noisy_quantum,
+        noise_params=payload.noise_params,
     )
     return StandardResponse(
         message="Model training completed successfully.",

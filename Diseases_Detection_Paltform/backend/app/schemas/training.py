@@ -24,25 +24,23 @@ class TrainingRunCreate(BaseModel):
     dataset_version_id: str
     feature_selection_run_id: str
     preprocessing_run_id: Optional[str] = None
-    training_config_id: Optional[str] = None
-    experiment_id: Optional[str] = None
+    hyperparameters: Dict[str, Any] = Field(default_factory=dict)
+    is_noisy_quantum: bool = False
+    noise_params: Optional[Dict[str, float]] = None
 
 
 class TrainingRunResponse(BaseModel):
     """Training run state and performance summary."""
     id: Annotated[str, BeforeValidator(str)]
+    experiment_id: Optional[str] = None
     user_id: str
     model_id: str
-    model_version_id: Optional[str] = None
     dataset_version_id: str
+    feature_selection_run_id: Optional[str] = None
     preprocessing_run_id: Optional[str] = None
-    feature_selection_run_id: str
     status: str
     metrics: Optional[Dict[str, Any]] = None
-    artifact_id: Optional[str] = None
     error_message: Optional[str] = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

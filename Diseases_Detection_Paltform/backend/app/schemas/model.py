@@ -27,6 +27,7 @@ class ModelResponse(BaseModel):
     model_type: str
     description: Optional[str] = None
     is_default: bool = False
+    status: str = "created"
     created_at: datetime
     updated_at: datetime
 

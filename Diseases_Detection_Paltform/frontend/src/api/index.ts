@@ -84,9 +84,10 @@ export const datasetsApi = {
     return res.data.data;
   },
 
-  analyzeVersion: async (datasetId: string, versionId: string): Promise<DatasetAnalysis> => {
+  analyzeVersion: async (datasetId: string, versionId: string, targetColumn?: string): Promise<DatasetAnalysis> => {
     const res = await apiClient.get<DatasetAnalysis>(
-      `/datasets/${datasetId}/versions/${versionId}/analysis`
+      `/datasets/${datasetId}/versions/${versionId}/analysis`,
+      { params: targetColumn ? { target_column: targetColumn } : undefined }
     );
     return res.data;
   },
@@ -104,9 +105,17 @@ export const preprocessingApi = {
   executePlan: async (payload: {
     dataset_version_id: string;
     target_column?: string;
+    mode?: 'ai' | 'user_defined';
     steps?: PreprocessingPlanStep[];
   }): Promise<PreprocessingRunResult> => {
     const res = await apiClient.post<{ data: PreprocessingRunResult }>('/preprocessing/execute', payload);
+    return res.data.data;
+  },
+
+  listArtifacts: async (datasetVersionId?: string): Promise<any[]> => {
+    const res = await apiClient.get<{ data: any[] }>('/preprocessing/artifacts', {
+      params: datasetVersionId ? { dataset_version_id: datasetVersionId } : undefined
+    });
     return res.data.data;
   },
 };
@@ -114,8 +123,10 @@ export const preprocessingApi = {
 export const featuresApi = {
   selectFeatures: async (payload: {
     dataset_version_id: string;
+    target_column?: string;
     ranking_method: string;
     k_features: number;
+    selected_features?: string[];
   }): Promise<FeatureSelectionRun> => {
     const res = await apiClient.post<{ data: FeatureSelectionRun }>('/features/select', payload);
     return res.data.data;
@@ -151,6 +162,10 @@ export const trainingApi = {
     model_id: string;
     dataset_version_id: string;
     feature_selection_run_id: string;
+    preprocessing_run_id?: string;
+    hyperparameters?: Record<string, any>;
+    is_noisy_quantum?: boolean;
+    noise_params?: Record<string, number>;
   }): Promise<TrainingRun> => {
     const res = await apiClient.post<{ data: TrainingRun }>('/training', payload);
     return res.data.data;
@@ -165,7 +180,7 @@ export const trainingApi = {
 export const predictionsApi = {
   predict: async (payload: {
     model_id: string;
-    features: Record<string, number> | Record<string, number>[];
+    features: Record<string, any> | Record<string, any>[];
     decision_threshold?: number;
   }): Promise<PredictionResponse> => {
     const res = await apiClient.post<PredictionResponse>('/predictions', payload);
@@ -202,9 +217,21 @@ export const experimentsApi = {
     name: string;
     description?: string;
     tags?: string[];
+    dataset_id?: string;
+    dataset_version_id?: string;
+    dataset_name?: string;
+    preprocessing_run_id?: string;
+    feature_selection_run_id?: string;
+    target_column?: string;
+    selected_features?: string[];
   }): Promise<Experiment> => {
     const res = await apiClient.post<{ data: Experiment }>('/experiments', payload);
     return res.data.data;
+  },
+
+  get: async (id: string): Promise<Experiment> => {
+    const res = await apiClient.get<Experiment>(`/experiments/${id}`);
+    return res.data;
   },
 
   compareRuns: async (experimentId: string, trainingRunIds: string[]): Promise<any> => {
