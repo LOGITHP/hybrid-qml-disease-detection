@@ -67,16 +67,16 @@ export const Sidebar: React.FC<{ onCloseMobile?: () => void }> = ({ onCloseMobil
   const { user, logout } = useAuth();
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col h-full border-r border-slate-800 select-none">
+    <aside className="w-64 bg-white text-slate-600 flex flex-col h-full border-r border-slate-200 select-none">
       {/* Brand Header */}
-      <div className="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-950/40">
+      <div className="h-16 flex items-center px-6 border-b border-slate-200 bg-slate-50/40">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-gradient-to-tr from-brand-700 to-quantum-600 rounded-lg text-white shadow-md">
             <Atom className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <span className="font-bold text-white tracking-wide text-sm block">HybridQML</span>
-            <span className="text-[10px] text-slate-400 font-medium tracking-tight block">
+            <span className="font-bold text-slate-900 tracking-wide text-sm block">HybridQML</span>
+            <span className="text-[10px] text-slate-500 font-medium tracking-tight block">
               Disease Screening Platform
             </span>
           </div>
@@ -87,7 +87,7 @@ export const Sidebar: React.FC<{ onCloseMobile?: () => void }> = ({ onCloseMobil
       <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
         {navigationGroups.map((group) => (
           <div key={group.title}>
-            <h3 className="px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            <h3 className="px-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
               {group.title}
             </h3>
             <ul className="space-y-0.5">
@@ -101,8 +101,8 @@ export const Sidebar: React.FC<{ onCloseMobile?: () => void }> = ({ onCloseMobil
                       className={({ isActive }) =>
                         `flex items-center px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                           isActive
-                            ? 'bg-brand-800/80 text-white shadow-sm font-semibold'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                            ? 'bg-brand-100 text-brand-900 shadow-sm font-semibold'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                         }`
                       }
                     >
@@ -118,20 +118,20 @@ export const Sidebar: React.FC<{ onCloseMobile?: () => void }> = ({ onCloseMobil
       </div>
 
       {/* User Session Footer */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
+      <div className="p-4 border-t border-slate-200 bg-slate-50/60 flex items-center justify-between">
         <div className="flex items-center space-x-3 overflow-hidden">
           <div className="w-8 h-8 rounded-full bg-brand-700 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
             {user?.full_name ? user.full_name.charAt(0) : 'U'}
           </div>
           <div className="truncate">
-            <p className="text-xs font-medium text-white truncate">{user?.full_name || 'Clinician'}</p>
-            <p className="text-[10px] text-slate-400 truncate capitalize">{user?.role || 'Clinician'}</p>
+            <p className="text-xs font-medium text-slate-900 truncate">{user?.full_name || 'Clinician'}</p>
+            <p className="text-[10px] text-slate-500 truncate capitalize">{user?.role || 'Clinician'}</p>
           </div>
         </div>
         <button
           onClick={logout}
           title="Sign out"
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
         >
           <LogOut className="w-4 h-4" />
         </button>
