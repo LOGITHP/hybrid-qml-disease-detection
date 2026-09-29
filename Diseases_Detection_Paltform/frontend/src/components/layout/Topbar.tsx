@@ -101,7 +101,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobile }) => {
           className="btn-primary text-xs py-1.5 px-3 flex items-center space-x-1.5"
         >
           <Activity className="w-3.5 h-3.5" />
-          <span>Screen Patient</span>
+          <span>Predict</span>
         </Link>
       </div>
     </header>

@@ -88,7 +88,7 @@ export const DashboardPage: React.FC = () => {
           </Link>
           <Link to="/predictions" className="btn-primary text-xs flex items-center space-x-2">
             <Activity className="w-3.5 h-3.5 mr-1" />
-            <span>Screen Patient</span>
+            <span>Predict</span>
           </Link>
         </div>
       </div>
@@ -139,9 +139,8 @@ export const DashboardPage: React.FC = () => {
           <MetricCard
             title="Biomedical Datasets"
             value={datasets?.length ?? 0}
-            subtitle="Clinical cohort files"
+            subtitle="System datasets"
             icon={Database}
-            badge="HIPAA Vault"
           />
           <MetricCard
             title="Experiment checkpoints"
