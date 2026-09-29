@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Activity, ArrowRight, Lightbulb, RotateCcw } from 'lucide-react';
 import { PredictionResponse } from '../../types';
+import { feedbackApi } from '../../api';
 import { MedicalNotice } from '../../components/common/MedicalNotice';
 import { EmptyState } from '../../components/common/EmptyState';
 
@@ -83,13 +84,7 @@ export const PredictionDetailPage: React.FC = () => {
               };
               
               try {
-                // Submit feedback via API (import feedbackApi or use fetch)
-                const res = await fetch('http://localhost:8000/api/v1/feedback', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('access_token') || 'test'}` },
-                  body: JSON.stringify(payload)
-                });
-                if (!res.ok) throw new Error('Failed to submit feedback');
+                await feedbackApi.submit(payload);
                 alert('Feedback submitted successfully. Thank you!');
                 form.reset();
               } catch (err) {

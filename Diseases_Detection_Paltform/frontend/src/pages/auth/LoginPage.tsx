@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Atom, Lock, Mail, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, quickLoginDemo } = useAuth();
+
+  const requestedPath = (location.state as {
+    from?: { pathname?: string; search?: string; hash?: string };
+  } | null)?.from;
+  const destination = requestedPath?.pathname
+    ? `${requestedPath.pathname}${requestedPath.search || ''}${requestedPath.hash || ''}`
+    : '/dashboard';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +30,7 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/dashboard');
+      navigate(destination, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please verify credentials.');
     } finally {
@@ -35,7 +43,7 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await quickLoginDemo();
-      navigate('/dashboard');
+      navigate(destination, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Demo session initialisation failed.');
     } finally {
