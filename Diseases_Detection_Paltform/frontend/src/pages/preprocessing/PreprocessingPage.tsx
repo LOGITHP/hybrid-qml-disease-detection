@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Sliders,
@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Check,
   Filter,
+  Send,
 } from 'lucide-react';
 import { datasetsApi, preprocessingApi } from '../../api';
 import { PreprocessingPlan, PreprocessingPlanStep } from '../../types';
@@ -31,9 +32,9 @@ const STEP_LABELS = [
 ];
 
 export const PreprocessingPage: React.FC = () => {
-  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
+  const [selectedVersionId, setSelectedVersionId] = useState<string>(() => sessionStorage.getItem('activeDatasetVersionId') || '');
   const [mode, setMode] = useState<'ai' | 'user_defined'>('ai');
   const [targetColumn, setTargetColumn] = useState('');
   const [targetVersionId, setTargetVersionId] = useState('');
@@ -46,23 +47,36 @@ export const PreprocessingPage: React.FC = () => {
   const [removeOutliers, setRemoveOutliers] = useState(false);
   const [outlierColumns, setOutlierColumns] = useState<string[]>([]);
   const [generatedPlan, setGeneratedPlan] = useState<PreprocessingPlan | null>(null);
+  const [planSuggestion, setPlanSuggestion] = useState('');
+  const [refinementFeedback, setRefinementFeedback] = useState('');
   const [executionResult, setExecutionResult] = useState<any | null>(null);
 
   // Fetch available datasets
-  const { data: datasets, isLoading: datasetsLoading } = useQuery({
+  const {
+    data: datasets,
+    isLoading: datasetsLoading,
+    isError: datasetsError,
+    error: datasetsQueryError,
+  } = useQuery({
     queryKey: ['datasets'],
     queryFn: datasetsApi.list,
   });
 
   const storedVersionId = sessionStorage.getItem('activeDatasetVersionId');
   const selectedDataset = datasets?.find((d) => d.id === selectedDatasetId)
-    || datasets?.find((d) => d.versions?.some((version) => version.id === storedVersionId))
+    || datasets?.find((d) => d.versions?.some((version) => version.id === (selectedVersionId || storedVersionId)))
     || datasets?.[0];
-  const activeVersion = selectedDataset?.versions?.find((version) => version.id === storedVersionId)
+  const activeVersion = selectedDataset?.versions?.find((version) => version.id === selectedVersionId)
+    || selectedDataset?.versions?.find((version) => version.id === storedVersionId)
     || [...(selectedDataset?.versions || [])].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
 
   // Fetch analysis for the selected dataset
-  const { data: analysis } = useQuery({
+  const {
+    data: analysis,
+    isLoading: analysisLoading,
+    isError: analysisError,
+    error: analysisQueryError,
+  } = useQuery({
     queryKey: ['datasetAnalysis', selectedDataset?.id, activeVersion?.id],
     queryFn: () =>
       selectedDataset?.id && activeVersion?.id
@@ -78,7 +92,9 @@ export const PreprocessingPage: React.FC = () => {
       setTargetVersionId(analysis.version_id);
       setScalingColumns((analysis.numerical_columns || []).filter((column) => column !== suggestedTarget));
       setEncodingColumns((analysis.categorical_columns || []).filter((column) => column !== suggestedTarget));
-      setOutlierColumns((analysis.numerical_columns || []).filter((column) => column !== suggestedTarget));
+      setOutlierColumns((analysis.numerical_columns || []).filter((column) =>
+        column !== suggestedTarget && (analysis.column_profiles?.[column]?.unique_count ?? 0) > 12
+      ));
     } else if (analysis?.columns?.length && (!analysis.columns.includes(targetColumn) || !targetColumn)) {
       setTargetColumn(analysis.target_column || analysis.columns[analysis.columns.length - 1]);
     }
@@ -90,6 +106,10 @@ export const PreprocessingPage: React.FC = () => {
 
   const makeUserDefinedPlan = () => {
     if (!activeVersion || !selectedDataset || !targetColumn) return;
+    const selectedCategoricalColumns = encodingColumns.filter((column) => categoricalColumns.includes(column));
+    const selectedOutlierColumns = outlierColumns.filter((column) => numericalColumns.includes(column));
+    if (numericalColumns.length + selectedCategoricalColumns.length === 0) return;
+    if (removeOutliers && selectedOutlierColumns.length === 0) return;
     const steps: PreprocessingPlanStep[] = [
       {
         step_id: 1,
@@ -116,40 +136,44 @@ export const PreprocessingPage: React.FC = () => {
         fit_on_train_only: true,
       });
     }
-    if (categoricalColumns.length) {
+    if (selectedCategoricalColumns.length) {
       steps.push({
         step_id: steps.length + 1,
         tool_name: 'categorical_imputer',
         rationale: `Fill missing categorical values using ${categoricalStrategy === 'constant' ? 'a missing-value category' : 'the training mode'}.`,
-        parameters: { strategy: categoricalStrategy, fill_value: '__missing__', columns: categoricalColumns },
+        parameters: { strategy: categoricalStrategy, fill_value: '__missing__', columns: selectedCategoricalColumns },
         fit_on_train_only: true,
       });
       steps.push({
         step_id: steps.length + 1,
         tool_name: `${encodingMethod}_encoder`,
         rationale: `Apply ${encodingMethod.replace('_', ' ')} encoding to the chosen categorical columns.`,
-        parameters: { columns: encodingColumns.filter((column) => categoricalColumns.includes(column)) },
+        parameters: { columns: selectedCategoricalColumns },
         fit_on_train_only: true,
       });
     }
-    if (removeOutliers && numericalColumns.length) steps.push({
+    if (removeOutliers && selectedOutlierColumns.length) steps.push({
       step_id: steps.length + 1,
       tool_name: 'iqr_outlier_removal',
       rationale: 'Estimate IQR bounds from training rows and remove outlier training rows only.',
-      parameters: { columns: outlierColumns.filter((column) => numericalColumns.includes(column)), factor: 1.5 },
+      parameters: { columns: selectedOutlierColumns, factor: 1.5 },
       fit_on_train_only: true,
     });
     setGeneratedPlan({
       dataset_id: selectedDataset.id,
       dataset_version_id: activeVersion.id,
+      target_column: targetColumn,
       steps,
       summary: `Manual plan for ${analysis?.row_count ?? activeVersion.row_count} uploaded rows and ${analysis?.column_count ?? activeVersion.column_count} columns.`,
       leakage_prevention_guarantee: 'Transformers and outlier bounds are fitted on training rows only; validation and test rows are transformed without refitting.',
+      generation_method: 'user_defined',
+      generation_note: 'Created from the transformation choices you selected.',
     });
+    setRefinementFeedback('');
     setCurrentStep(3);
   };
 
-  // AI Plan formulation mutation (invokes Gemma reasoning via backend)
+  // Build a deterministic, schema-aware baseline from the selected upload.
   const planMutation = useMutation({
     mutationFn: async () => {
       if (!activeVersion) throw new Error('No dataset version selected');
@@ -160,7 +184,30 @@ export const PreprocessingPage: React.FC = () => {
     },
     onSuccess: (data) => {
       setGeneratedPlan(data);
+      setRefinementFeedback('');
       setCurrentStep(3); // Move to AI Plan review
+    },
+  });
+
+  const refinePlanMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeVersion || !selectedDataset || !generatedPlan) throw new Error('Build a plan before requesting an update.');
+      const response = await preprocessingApi.modifyPlan({
+        dataset_id: selectedDataset.id,
+        dataset_version_id: activeVersion.id,
+        current_pipeline: generatedPlan,
+        user_instruction: planSuggestion.trim(),
+      });
+      if (response.status !== 'valid' || !response.updated_pipeline) {
+        throw new Error(response.explanation || 'The LLM did not return an updated plan.');
+      }
+      return response;
+    },
+    onSuccess: (response) => {
+      setGeneratedPlan(response.updated_pipeline || null);
+      setRefinementFeedback(response.explanation);
+      setPlanSuggestion('');
+      executeMutation.reset();
     },
   });
 
@@ -173,6 +220,8 @@ export const PreprocessingPage: React.FC = () => {
         target_column: targetColumn,
         mode,
         steps: generatedPlan?.steps,
+        generation_method: generatedPlan?.generation_method || 'rule_based',
+        generation_provider: generatedPlan?.generation_provider,
       });
     },
     onSuccess: (data) => {
@@ -184,7 +233,7 @@ export const PreprocessingPage: React.FC = () => {
       sessionStorage.setItem('activePreprocessingRunId', data.preprocessing_run_id);
       sessionStorage.setItem('activeDatasetVersionId', data.dataset_version_id);
       sessionStorage.setItem('activeTargetColumn', targetColumn);
-      setCurrentStep(6); // Validation & Complete
+      setCurrentStep(7); // Completed
     },
   });
 
@@ -195,13 +244,11 @@ export const PreprocessingPage: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2 text-xs font-semibold text-brand-700 uppercase tracking-wider mb-1">
             <BrainCircuit className="w-4 h-4 text-quantum-600 animate-pulse" />
-            <span>AI Clinical Preprocessing Agent</span>
+            <span>Schema-Aware Preprocessing</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Biomedical Data Preprocessing
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Tabular Data Preprocessing</h1>
           <p className="text-xs text-slate-500">
-            Gemma LLM guided transformation with guaranteed prevention of training-to-test data leakage
+            Build a plan from the selected upload's schema, then fit transformations on training rows only.
           </p>
         </div>
 
@@ -272,6 +319,10 @@ export const PreprocessingPage: React.FC = () => {
 
             {datasetsLoading ? (
               <LoadingSkeleton rows={2} />
+            ) : datasetsError ? (
+              <div role="alert" className="p-4 rounded-lg border border-red-200 bg-red-50 text-xs text-red-800">
+                Could not load your datasets. {datasetsQueryError instanceof Error ? datasetsQueryError.message : 'Check the backend connection and try again.'}
+              </div>
             ) : !datasets || datasets.length === 0 ? (
               <div className="text-center py-6 text-xs text-slate-500">
                 No datasets ingested yet. Please upload a dataset first.
@@ -284,12 +335,20 @@ export const PreprocessingPage: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 <select
-                  value={selectedDatasetId || datasets[0]?.id}
+                  value={selectedDataset?.id || selectedDatasetId || datasets[0]?.id}
                   onChange={(e) => {
-                    setSelectedDatasetId(e.target.value);
+                    const nextDatasetId = e.target.value;
+                    const nextDataset = datasets.find((dataset) => dataset.id === nextDatasetId);
+                    const latestVersion = [...(nextDataset?.versions || [])]
+                      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+                    setSelectedDatasetId(nextDatasetId);
+                    setSelectedVersionId(latestVersion?.id || '');
+                    setTargetColumn('');
+                    setTargetVersionId('');
                     setGeneratedPlan(null);
                     setExecutionResult(null);
-                    sessionStorage.removeItem('activeDatasetVersionId');
+                    if (latestVersion) sessionStorage.setItem('activeDatasetVersionId', latestVersion.id);
+                    else sessionStorage.removeItem('activeDatasetVersionId');
                     sessionStorage.removeItem('activePreprocessingRunId');
                     sessionStorage.removeItem('activeFeatureSelectionRunId');
                     sessionStorage.removeItem('activeSelectedFeatures');
@@ -299,17 +358,52 @@ export const PreprocessingPage: React.FC = () => {
                 >
                   {datasets.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name} ({d.versions?.[0]?.row_count || 0} rows,{' '}
-                      {d.versions?.[0]?.column_count || 0} columns)
+                      {(() => {
+                        const latest = [...(d.versions || [])].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+                        return `${d.name} (${latest?.row_count || 0} rows, ${latest?.column_count || 0} columns)`;
+                      })()}
                     </option>
                   ))}
                 </select>
+
+                {selectedDataset?.versions && selectedDataset.versions.length > 1 && (
+                  <label className="block space-y-1 text-xs font-medium text-slate-700">
+                    Dataset version
+                    <select
+                      aria-label="Dataset version"
+                      value={activeVersion?.id || ''}
+                      onChange={(e) => {
+                        setSelectedVersionId(e.target.value);
+                        sessionStorage.setItem('activeDatasetVersionId', e.target.value);
+                        setTargetColumn('');
+                        setTargetVersionId('');
+                        setGeneratedPlan(null);
+                        setExecutionResult(null);
+                        sessionStorage.removeItem('activePreprocessingRunId');
+                        sessionStorage.removeItem('activeFeatureSelectionRunId');
+                        sessionStorage.removeItem('activeSelectedFeatures');
+                        sessionStorage.removeItem('activeTargetColumn');
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                    >
+                      {[...selectedDataset.versions]
+                        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+                        .map((version) => (
+                          <option key={version.id} value={version.id}>
+                            {version.version_tag} ({version.row_count} rows, {version.column_count} columns)
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                )}
 
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600 items-center">
                     <span>Target Classification Column:</span>
                     <select
+                      aria-label="Target classification column"
                       value={targetColumn}
+                      disabled={!analysis || analysisError}
                       onChange={(e) => {
                         setTargetColumn(e.target.value);
                         setGeneratedPlan(null);
@@ -321,9 +415,18 @@ export const PreprocessingPage: React.FC = () => {
                       }}
                       className="ml-2 px-2 py-1 border border-slate-300 rounded text-brand-900 font-bold bg-white"
                     >
+                      <option value="" disabled>
+                        {analysisLoading ? 'Loading columns…' : analysisError ? 'Schema unavailable' : 'Select target'}
+                      </option>
                       {analysis?.columns?.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
+                  {analysisLoading && <p className="text-slate-500">Inspecting the selected dataset version…</p>}
+                  {analysisError && (
+                    <p role="alert" className="text-red-700">
+                      Could not inspect this dataset version. {analysisQueryError instanceof Error ? analysisQueryError.message : 'Try selecting the dataset again.'}
+                    </p>
+                  )}
                   <div className="flex justify-between text-slate-600">
                     <span>Version Tag:</span>
                     <span className="font-mono text-slate-800">{activeVersion?.version_tag || 'v1.0'}</span>
@@ -341,30 +444,34 @@ export const PreprocessingPage: React.FC = () => {
                 2. Choose Preprocessing Strategy
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div
-                  onClick={() => setMode('ai')}
+                <button
+                  type="button"
+                  aria-pressed={mode === 'ai'}
+                  onClick={() => { setMode('ai'); planMutation.reset(); executeMutation.reset(); }}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     mode === 'ai'
                       ? 'border-brand-800 bg-brand-50/50 shadow-sm'
                       : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  } w-full text-left`}
                 >
                   <div className="flex items-center space-x-2 mb-1.5">
                     <Sparkles className="w-4 h-4 text-quantum-600" />
-                    <span className="text-xs font-bold text-slate-900">AI-Assisted (Gemma LLM)</span>
+                    <span className="text-xs font-bold text-slate-900">Automatic rule-based baseline</span>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    The agent inspects the selected upload's column types, missing values, and target distribution before proposing transformations.
+                    Builds a deterministic baseline from the uploaded column types and missing-value counts. No LLM call runs until you ask it to refine the plan.
                   </p>
-                </div>
+                </button>
 
-                <div
-                  onClick={() => setMode('user_defined')}
+                <button
+                  type="button"
+                  aria-pressed={mode === 'user_defined'}
+                  onClick={() => { setMode('user_defined'); planMutation.reset(); executeMutation.reset(); }}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     mode === 'user_defined'
                       ? 'border-brand-800 bg-brand-50/50 shadow-sm'
                       : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  } w-full text-left`}
                 >
                   <div className="flex items-center space-x-2 mb-1.5">
                     <Sliders className="w-4 h-4 text-slate-700" />
@@ -373,7 +480,7 @@ export const PreprocessingPage: React.FC = () => {
                   <p className="text-[11px] text-slate-500">
                     Choose imputation, categorical encoding, scaling, and optional training-only outlier removal by column.
                   </p>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -439,6 +546,9 @@ export const PreprocessingPage: React.FC = () => {
                     {categoricalColumns.some((column) => !encodingColumns.includes(column)) && <p className="text-[11px] text-amber-700">Unchecked categorical columns will be omitted from the model feature matrix.</p>}
                   </div>
                 )}
+                {numericalColumns.length === 0 && !categoricalColumns.some((column) => encodingColumns.includes(column)) && (
+                  <p role="alert" className="text-xs text-amber-800">Select at least one numeric feature or categorical column to encode before reviewing this plan.</p>
+                )}
                 {numericalColumns.length > 0 && (
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
@@ -453,26 +563,29 @@ export const PreprocessingPage: React.FC = () => {
                         </label>
                       ))}
                     </div>}
+                    {removeOutliers && !outlierColumns.some((column) => numericalColumns.includes(column)) && (
+                      <p role="alert" className="text-[11px] text-amber-800">Select at least one numeric column. Binary or low-cardinality columns are not preselected because IQR filtering can remove valid minority values.</p>
+                    )}
                   </div>
                 )}
                 {!numericalColumns.length && !categoricalColumns.length && <p className="text-xs text-amber-800">Select a target column with at least one remaining feature.</p>}
               </div>
             )}
 
-            {(planMutation.isError || executeMutation.isError) && (
-              <div className="p-3 rounded-lg border border-red-200 bg-red-50 text-xs text-red-800">
-                {(planMutation.error || executeMutation.error) instanceof Error ? (planMutation.error || executeMutation.error as Error).message : 'Preprocessing failed for this dataset.'}
+            {planMutation.isError && (
+              <div role="alert" className="p-3 rounded-lg border border-red-200 bg-red-50 text-xs text-red-800">
+                {planMutation.error instanceof Error ? planMutation.error.message : 'Could not create a preprocessing plan for this dataset.'}
               </div>
             )}
 
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => mode === 'user_defined' ? makeUserDefinedPlan() : planMutation.mutate()}
-                disabled={planMutation.isPending || !activeVersion || !targetColumn || (mode === 'user_defined' && numericalColumns.length + categoricalColumns.length === 0)}
+                disabled={planMutation.isPending || !activeVersion || !analysis || analysisError || !targetColumn || (mode === 'user_defined' && numericalColumns.length + encodingColumns.filter((column) => categoricalColumns.includes(column)).length === 0) || (mode === 'user_defined' && removeOutliers && !outlierColumns.some((column) => numericalColumns.includes(column)))}
                 className="btn-primary text-xs py-2.5 px-5 flex items-center space-x-2"
               >
                 <BrainCircuit className="w-4 h-4" />
-                <span>{mode === 'user_defined' ? 'Review Manual Plan' : planMutation.isPending ? 'Analyzing Uploaded Dataset...' : 'Analyze & Formulate Plan'}</span>
+                <span>{mode === 'user_defined' ? 'Review Manual Plan' : planMutation.isPending ? 'Building Dataset Plan…' : 'Build Rule-Based Plan'}</span>
               </button>
             </div>
           </div>
@@ -481,34 +594,38 @@ export const PreprocessingPage: React.FC = () => {
           <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 text-emerald-700">
               <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-              <h4 className="text-xs font-bold uppercase tracking-wider">Zero Data Leakage Protocol</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider">Train-Only Transformation Fitting</h4>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              In medical AI, data leakage artificially inflates diagnostic accuracy. The AI Preprocessing Agent enforces:
+              The split is created before imputers and scalers are fitted. Stratification is used when class counts permit.
             </p>
             <ul className="text-xs text-slate-600 space-y-2 list-disc pl-4">
               <li>
-                <strong>Stratified Split First:</strong> Training (70%), Validation (15%), and Test (15%) partitions are created before any transformation.
+                <strong>Split first:</strong> Training (70%), validation (15%), and test (15%) partitions are created before learned transformations.
               </li>
               <li>
-                <strong>Strict Imputation Isolation:</strong> Median and mean values are computed exclusively from training records.
+                <strong>Fit on training rows:</strong> Configured imputers, encoders, and scalers learn from training rows, then transform validation and test rows.
               </li>
               <li>
-                <strong>No Re-fitting on Test Set:</strong> Validation and testing cohorts are strictly transformed using training statistics.
+                <strong>Check related rows:</strong> Exact duplicates or repeated patients can still cross partitions; deduplicate or split by a group identifier when needed.
               </li>
             </ul>
           </div>
         </div>
       )}
 
-      {/* Step 3 & 4: Review AI Plan */}
+      {/* Step 3 & 4: Review and refine the plan */}
       {currentStep >= 3 && currentStep <= 5 && generatedPlan && (
         <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
             <div>
               <div className="flex items-center space-x-2">
                 <span className="badge bg-quantum-50 text-quantum-700 border border-quantum-200 font-semibold">
-                  {mode === 'ai' ? 'AI Agent Proposed' : 'User-defined Plan'}
+                  {generatedPlan.generation_method === 'llm'
+                    ? `LLM-refined${generatedPlan.generation_provider ? ` · ${generatedPlan.generation_provider}` : ''}`
+                    : generatedPlan.generation_method === 'user_defined'
+                      ? 'User-defined plan'
+                      : 'Rule-based schema plan · no LLM call'}
                 </span>
                 <span className="text-xs text-slate-400">Step 3 &bull; Plan Review</span>
               </div>
@@ -522,30 +639,95 @@ export const PreprocessingPage: React.FC = () => {
 
           {/* Plan Steps Accordion / List */}
           <div className="space-y-3">
-            {generatedPlan.steps.map((step) => (
+            {generatedPlan.steps.map((step, index) => (
               <div
                 key={step.step_id}
-                className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-start space-x-4"
+                className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:gap-4 sm:p-4"
               >
-                <div className="w-6 h-6 rounded-full bg-brand-800 text-white flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5">
-                  {step.step_id}
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-800 text-xs font-bold text-white">
+                  {index + 1}
                 </div>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900 font-mono">
-                      {step.tool_name}
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <span className="min-w-0 break-words text-sm font-bold capitalize text-slate-900">
+                      {step.tool_name.replace(/_/g, ' ')}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">
-                      Fit on Train Only: {step.fit_on_train_only ? 'YES (Leak-free)' : 'N/A'}
+                    <span className="w-fit shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-600">
+                      {step.fit_on_train_only ? 'Fit on training data' : 'No fitting required'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600">{step.rationale}</p>
-                  <div className="text-[11px] font-mono text-slate-500 pt-1">
-                    Params: {JSON.stringify(step.parameters)}
-                  </div>
+                  <p className="break-words text-xs leading-relaxed text-slate-600">{step.rationale}</p>
+                  <details className="group rounded-lg border border-slate-200/80 bg-white">
+                    <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-600 marker:hidden hover:text-slate-900">
+                      <span className="mr-2 inline-block transition-transform group-open:rotate-90">›</span>
+                      View parameters
+                    </summary>
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all border-t border-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-600">
+                      {JSON.stringify(step.parameters, null, 2)}
+                    </pre>
+                  </details>
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4 sm:p-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" />
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-slate-900">Ask the LLM to refine this plan</h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                  {generatedPlan.generation_method === 'llm'
+                    ? 'The current steps were returned by the configured LLM and checked against this dataset schema.'
+                    : generatedPlan.generation_method === 'user_defined'
+                      ? 'You created this plan from the transformation choices above. The LLM has not processed it yet.'
+                      : 'This baseline was built with deterministic schema rules. The LLM has not processed it yet.'}
+                  {' '}Your suggestion, column names, data types, and missing-value counts are sent to the configured LLM provider; dataset row values are not sent. If the model is unavailable or returns an invalid plan, this version stays unchanged.
+                </p>
+              </div>
+            </div>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-semibold text-slate-700">Your suggested changes</span>
+              <textarea
+                value={planSuggestion}
+                onChange={(event) => setPlanSuggestion(event.target.value)}
+                placeholder="For example: use robust scaling for AGE and BMI, keep one-hot encoding for GENDER, and do not remove outliers."
+                rows={3}
+                className="w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100"
+              />
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[11px] text-slate-500">The updated steps will appear here for review before execution.</p>
+              <button
+                type="button"
+                onClick={() => refinePlanMutation.mutate()}
+                disabled={refinePlanMutation.isPending || !planSuggestion.trim() || !activeVersion}
+                className="btn-primary flex items-center justify-center gap-2 px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>{refinePlanMutation.isPending ? 'Loading local model and refining…' : 'Apply suggestion with LLM'}</span>
+              </button>
+            </div>
+            {refinePlanMutation.isPending && (
+              <p role="status" className="text-[11px] leading-relaxed text-violet-800">
+                The Docker-hosted model may take a few minutes on its first request while it loads. It will stay ready for follow-up suggestions, and your current plan will remain unchanged until a valid update is returned.
+              </p>
+            )}
+            {refinementFeedback && (
+              <div role="status" className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-800">
+                {refinementFeedback}
+              </div>
+            )}
+            {!!refinePlanMutation.data?.warnings?.length && (
+              <ul className="list-disc space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                {refinePlanMutation.data.warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}
+              </ul>
+            )}
+            {refinePlanMutation.isError && (
+              <div role="alert" className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs text-red-800">
+                {refinePlanMutation.error instanceof Error ? refinePlanMutation.error.message : 'The LLM could not update the plan. The current plan is unchanged.'}
+              </div>
+            )}
           </div>
 
           {/* Plan Approval Actions */}
@@ -571,6 +753,11 @@ export const PreprocessingPage: React.FC = () => {
               </button>
             </div>
           </div>
+          {executeMutation.isError && (
+            <div role="alert" className="p-3 rounded-lg border border-red-200 bg-red-50 text-xs text-red-800">
+              {executeMutation.error instanceof Error ? executeMutation.error.message : 'Could not execute the approved preprocessing plan.'}
+            </div>
+          )}
         </div>
       )}
 
@@ -593,8 +780,9 @@ export const PreprocessingPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-              <span className="text-[11px] text-slate-400 font-medium block">Training Partition (70%)</span>
+              <span className="text-[11px] text-slate-400 font-medium block">Training partition</span>
                 <span className="text-xl font-bold text-slate-900">{executionResult.train_samples} Rows</span>
+              {executionResult.outlier_rows_removed > 0 && <span className="text-[10px] text-amber-700 block">{executionResult.outlier_rows_removed} training rows removed as outliers</span>}
               <span className="text-[10px] text-emerald-600 block mt-1">Imputer & Scaler fit here</span>
             </div>
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
@@ -612,10 +800,10 @@ export const PreprocessingPage: React.FC = () => {
           <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
             <div className="flex items-center space-x-2 text-xs text-emerald-900">
               <ShieldCheck className="w-4 h-4 text-emerald-700 flex-shrink-0" />
-              <span><strong>Audit Result:</strong> {executionResult.leakage_audit}</span>
+              <span><strong>Transformation audit:</strong> {executionResult.leakage_audit}</span>
             </div>
             <span className="badge bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold">
-              PASSED
+              TRAIN-FIT
             </span>
           </div>
 

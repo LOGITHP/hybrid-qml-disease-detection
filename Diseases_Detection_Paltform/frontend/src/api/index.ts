@@ -102,11 +102,35 @@ export const preprocessingApi = {
     return res.data.data;
   },
 
+  modifyPlan: async (payload: {
+    dataset_id: string;
+    dataset_version_id: string;
+    current_pipeline: PreprocessingPlan;
+    user_instruction: string;
+  }): Promise<{
+    status: 'valid' | 'invalid';
+    explanation: string;
+    changes: any[];
+    updated_pipeline?: PreprocessingPlan;
+    warnings: string[];
+  }> => {
+    const res = await apiClient.post<{ data: {
+      status: 'valid' | 'invalid';
+      explanation: string;
+      changes: any[];
+      updated_pipeline?: PreprocessingPlan;
+      warnings: string[];
+    } }>('/preprocessing/ai/modify', payload, { timeout: 450_000 });
+    return res.data.data;
+  },
+
   executePlan: async (payload: {
     dataset_version_id: string;
     target_column?: string;
     mode?: 'ai' | 'user_defined';
     steps?: PreprocessingPlanStep[];
+    generation_method?: 'rule_based' | 'llm' | 'user_defined';
+    generation_provider?: string | null;
   }): Promise<PreprocessingRunResult> => {
     const res = await apiClient.post<{ data: PreprocessingRunResult }>('/preprocessing/execute', payload);
     return res.data.data;
@@ -167,10 +191,11 @@ export const trainingApi = {
     model_id: string;
     dataset_version_id: string;
     feature_selection_run_id: string;
-    preprocessing_run_id?: string;
-    hyperparameters?: Record<string, any>;
-    is_noisy_quantum?: boolean;
-    noise_params?: Record<string, number>;
+      preprocessing_run_id?: string;
+      hyperparameters?: Record<string, any>;
+      is_noisy_quantum?: boolean;
+      noise_params?: Record<string, number>;
+      custom_name?: string;
   }): Promise<TrainingRun> => {
     const res = await apiClient.post<{ data: TrainingRun }>('/training', payload);
     return res.data.data;
@@ -274,5 +299,25 @@ export const evaluationApi = {
   compare: async (trainingRunIds: string[]): Promise<any> => {
     const res = await apiClient.post('/evaluation/compare', { training_run_ids: trainingRunIds });
     return res.data;
+  }
+};
+
+
+export const feedbackApi = {
+  submit: async (payload: any): Promise<any> => {
+    const res = await apiClient.post<{ data: any }>('/feedback', payload);
+    return res.data.data;
+  },
+  listByModel: async (modelId: string): Promise<any[]> => {
+    const res = await apiClient.get<{ data: any[] }>(`/feedback/model/${modelId}`);
+    return res.data.data;
+  },
+  getStats: async (modelId: string): Promise<any> => {
+    const res = await apiClient.get<{ data: any }>(`/feedback/model/${modelId}/stats`);
+    return res.data.data;
+  },
+  triggerRetrain: async (modelId: string): Promise<any> => {
+    const res = await apiClient.post<{ data: any }>(`/feedback/model/${modelId}/retrain`);
+    return res.data.data;
   }
 };

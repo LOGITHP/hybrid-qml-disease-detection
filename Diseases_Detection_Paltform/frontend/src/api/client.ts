@@ -26,7 +26,7 @@ apiClient.interceptors.request.use(
 // Response interceptor to format errors and handle 401s
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<{ detail?: string; message?: string }>) => {
+  (error: AxiosError<{ detail?: string | { message?: string; code?: string }; message?: string }>) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('hybrid_qml_token');
       localStorage.removeItem('hybrid_qml_user');
@@ -42,6 +42,8 @@ apiClient.interceptors.response.use(
         errorMessage = error.response.data.detail.map((err: any) => `${err.loc?.join('.')} ${err.msg}`).join(', ');
       } else if (typeof error.response.data.detail === 'string') {
         errorMessage = error.response.data.detail;
+      } else if (typeof error.response.data.detail === 'object' && error.response.data.detail.message) {
+        errorMessage = error.response.data.detail.message;
       }
     } else if (error.response?.data?.message) {
       errorMessage = error.response.data.message;

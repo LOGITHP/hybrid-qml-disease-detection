@@ -30,6 +30,9 @@ class PreprocessingPlan(BaseModel):
     steps: List[PreprocessingPlanStep]
     summary: str = ""
     leakage_prevention_guarantee: str = "Learned transformers (imputer, scaler, encoder) are fit strictly on X_train."
+    generation_method: Literal["rule_based", "llm", "user_defined"] = "rule_based"
+    generation_provider: Optional[str] = None
+    generation_note: str = ""
 
 
 class PreprocessingRunCreate(BaseModel):

@@ -19,6 +19,7 @@ from app.schemas.evaluation import (
 )
 from app.schemas.experiment import ExperimentCreate, ExperimentResponse
 from app.schemas.artifact import ArtifactResponse, ArtifactMetadata
+from app.schemas.feedback import FeedbackCreate, FeedbackResponse, FeedbackStats
 
 __all__ = [
     "StandardResponse", "ErrorResponse", "ErrorDetail", "PaginatedResponse", "PaginationMeta",
@@ -35,4 +36,5 @@ __all__ = [
     "ModelComparisonRequest", "ModelComparisonEntry", "MetricComparisonRow", "ComprehensiveComparisonResponse", "ConfusionMatrix",
     "ExperimentCreate", "ExperimentResponse",
     "ArtifactResponse", "ArtifactMetadata",
+    "FeedbackCreate", "FeedbackResponse", "FeedbackStats"
 ]

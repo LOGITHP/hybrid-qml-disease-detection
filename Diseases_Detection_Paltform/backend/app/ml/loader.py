@@ -24,11 +24,6 @@ def _get_project_root() -> Path:
     parents = loader_path.parents
     return parents[min(2, len(parents) - 1)]
 
-PROJECT_ROOT = _get_project_root()
-EXPERIMENT_ROOT = Path(
-    os.getenv("EXPERIMENT_ROOT", str(PROJECT_ROOT / "Experimental_ML" / "Lung_Cancer"))
-).resolve()
-
 
 class PretrainedModelLoader:
     """Manages loading of existing pre-trained CML and QML models into backend IModel instances."""
@@ -39,104 +34,11 @@ class PretrainedModelLoader:
 
     def list_available_models(self) -> List[Dict[str, Any]]:
         """List all pre-trained models with their feature requirements and architectures."""
-        experiment_models = self._list_experimental_models()
-        if experiment_models:
-            return experiment_models
         if not self.metadata_path.exists():
             return []
         with open(self.metadata_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data.get("models", [])
-
-    def _list_experimental_models(self) -> List[Dict[str, Any]]:
-        """Build the catalog from checkpoints and test metrics in Experimental_ML."""
-        if not EXPERIMENT_ROOT.is_dir():
-            return []
-        consolidated_path = EXPERIMENT_ROOT / "results" / "classical_vs_quantum" / "model_comparison_metrics.json"
-        consolidated = {}
-        if consolidated_path.exists():
-            with open(consolidated_path, "r", encoding="utf-8") as f:
-                consolidated = {row.get("Model Name"): row for row in json.load(f) if isinstance(row, dict)}
-
-        model_specs = [
-            ("exp-svm-linear-4", "Classical Linear SVM (4 Features)", "svm_linear", 4,
-             "CML/4-feature/models/classical_linear_svm_4_feats.joblib", None, None, "Classical Linear SVM (4 Feats)"),
-            ("exp-svm-rbf-4", "Classical RBF SVM (4 Features)", "svm_rbf", 4,
-             "CML/4-feature/models/classical_rbf_svm_4_feats.joblib", None, None, "Classical RBF SVM (4 Feats)"),
-            ("exp-logistic-4", "Logistic Regression (4 Features)", "logistic_regression", 4,
-             "CML/4-feature/models/logistic_regression_4_feats.joblib", None, None, "Logistic Regression (4 Feats)"),
-            ("exp-svm-linear-6", "Classical Linear SVM (6 Features)", "svm_linear", 6,
-             "CML/6-feature/models/classical_linear_svm_6_feats.joblib", None, None, "Classical Linear SVM (6 Feats)"),
-            ("exp-svm-rbf-6", "Classical RBF SVM (6 Features)", "svm_rbf", 6,
-             "CML/6-feature/models/classical_rbf_svm_6_feats.joblib", None, None, "Classical RBF SVM (6 Feats)"),
-            ("exp-svm-linear-8", "Classical Linear SVM (8 Features)", "svm_linear", 8,
-             "CML/8-feature/models/classical_linear_svm_8_feats.joblib", None, None, "Classical Linear SVM (8 Feats)"),
-            ("exp-svm-rbf-8", "Classical RBF SVM (8 Features)", "svm_rbf", 8,
-             "CML/8-feature/models/classical_rbf_svm_8_feats.joblib", None, None, "Classical RBF SVM (8 Feats)"),
-            ("exp-vqc-4", "4-Qubit Variational Quantum Classifier (Noiseless)", "vqc", 4,
-             None, "HQML/4-feature-VQC/model/vqc_weights.npy", "HQML/4-feature-VQC/model/vqc_bias.npy", "4-Qubit Noiseless VQC"),
-            ("exp-vqc-4-noisy", "4-Qubit Variational Quantum Classifier (Noisy NISQ)", "vqc", 4,
-             None, "HQML/4-feature-VQC-Noisy/model/vqc_noisy_weights.npy", "HQML/4-feature-VQC-Noisy/model/vqc_noisy_bias.npy", "4-Qubit Noisy VQC"),
-            ("exp-vqc-6", "6-Qubit Variational Quantum Classifier", "vqc", 6,
-             None, "HQML/6-feature-VQC/model/vqc_6_weights.npy", "HQML/6-feature-VQC/model/vqc_6_bias.npy", "6-Qubit Noiseless VQC"),
-            ("exp-vqc-8", "8-Qubit Variational Quantum Classifier", "vqc", 8,
-             None, "HQML/8-feature-VQC/model/vqc_8_weights.npy", "HQML/8-feature-VQC/model/vqc_8_bias.npy", "8-Qubit Noiseless VQC"),
-        ]
-        result = []
-        for model_id, name, model_type, feature_count, model_file, weights_file, bias_file, metric_name in model_specs:
-            artifact_paths = [path for path in (model_file, weights_file, bias_file) if path]
-            if not all((EXPERIMENT_ROOT / path).is_file() for path in artifact_paths):
-                continue
-            feature_file = "data/processed/selected_features.json" if feature_count == 4 else f"data/processed/selected_features_{feature_count}.json"
-            feature_path = EXPERIMENT_ROOT / feature_file
-            if not feature_path.is_file():
-                continue
-            with open(feature_path, "r", encoding="utf-8") as f:
-                features = json.load(f)
-            metric_row = consolidated.get(metric_name)
-            if metric_row is None and model_type in {"svm_linear", "svm_rbf"}:
-                metric_path = EXPERIMENT_ROOT / "CML" / f"{feature_count}-feature" / "metrics" / f"metrics_{feature_count}features.json"
-                if metric_path.exists():
-                    with open(metric_path, "r", encoding="utf-8") as f:
-                        metric_row = next((row for row in json.load(f) if row.get("Model Name") == metric_name), None)
-            if metric_row is None and model_type == "vqc":
-                metrics_paths = {
-                    "4-Qubit Noiseless VQC": "HQML/4-feature-VQC/metrics/test_metrics.json",
-                    "4-Qubit Noisy VQC": "HQML/4-feature-VQC-Noisy/metrics/noisy_test_metrics.json",
-                    "6-Qubit Noiseless VQC": "HQML/6-feature-VQC/metrics/test_metrics_6.json",
-                    "8-Qubit Noiseless VQC": "HQML/8-feature-VQC/metrics/test_metrics_8.json",
-                }
-                metrics_path = EXPERIMENT_ROOT / metrics_paths[metric_name]
-                if metrics_path.exists():
-                    with open(metrics_path, "r", encoding="utf-8") as f:
-                        metric_row = json.load(f)
-            metrics = self._normalize_experiment_metrics(metric_row)
-            if not metrics:
-                continue
-            entry = {
-                "model_id": model_id,
-                "model_name": name,
-                "model_type": model_type,
-                "feature_count": feature_count,
-                "selected_features": features,
-                "target_column": "LUNG_CANCER",
-                "framework": "PennyLane" if model_type == "vqc" else "scikit-learn",
-                "metrics": metrics,
-                "source_experiment": str(Path("Experimental_ML") / "Lung_Cancer" / artifact_paths[0]) if model_file else str(Path("Experimental_ML") / "Lung_Cancer" / weights_file),
-            }
-            if model_file:
-                entry["model_file"] = str(Path("Experimental_ML") / "Lung_Cancer" / model_file)
-                parameters = metric_row.get("Best Parameters") or metric_row.get("Best Hyperparameters") or {}
-                if parameters:
-                    entry["hyperparameters"] = parameters
-            if weights_file:
-                entry["weights_file"] = str(Path("Experimental_ML") / "Lung_Cancer" / weights_file)
-                entry["bias_file"] = str(Path("Experimental_ML") / "Lung_Cancer" / bias_file)
-                entry.update({"n_qubits": feature_count, "n_layers": 2})
-                if "noisy" in model_id:
-                    entry["noise_channels"] = {"p_gate": 0.005, "p_cnot": 0.02, "p_meas": 0.015}
-            result.append(entry)
-        return result
 
     @staticmethod
     def _normalize_experiment_metrics(row: Optional[Dict[str, Any]]) -> Dict[str, Any]:

@@ -75,7 +75,6 @@ async def test_full_platform_pipeline_e2e(client: AsyncClient):
     )
     assert train_svm.status_code == 201
     svm_run_id = train_svm.json()["data"]["id"]
-    svm_version_id = train_svm.json()["data"]["model_version_id"]
     assert "metrics" in train_svm.json()["data"]
 
     # 7. Register VQC Model Archetype
@@ -95,18 +94,19 @@ async def test_full_platform_pipeline_e2e(client: AsyncClient):
     )
     assert train_vqc.status_code == 201
     vqc_run_id = train_vqc.json()["data"]["id"]
-    vqc_version_id = train_vqc.json()["data"]["model_version_id"]
 
     # 9. Perform Inference Prediction with Risk Stratification
     pred_res = await client.post(
         "/api/v1/predictions",
         json={
-            "model_version_id": svm_version_id,
+            "model_id": train_svm.json()["data"]["model_id"],
             "features": {selected_features[0]: 65.0, selected_features[1]: 1.0, selected_features[2]: 2.0, selected_features[3]: 1.0},
             "decision_threshold": 0.5,
         },
         headers=auth_header,
     )
+    if pred_res.status_code != 200:
+        print(f"Prediction failed with: {pred_res.text}")
     assert pred_res.status_code == 200
     pred_data = pred_res.json()
     assert len(pred_data["results"]) == 1

@@ -17,28 +17,6 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { EmptyState } from '../../components/common/EmptyState';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 
-// Small demo file for trying the upload flow; this is not the experiment benchmark dataset.
-const DEMO_LUNG_CANCER_CSV = `GENDER,AGE,SMOKING,YELLOW_FINGERS,ANXIETY,PEER_PRESSURE,CHRONIC_DISEASE,FATIGUE,ALLERGY,WHEEZING,ALCOHOL_CONSUMING,COUGHING,SHORTNESS_OF_BREATH,SWALLOWING_DIFFICULTY,CHEST_PAIN,LUNG_CANCER
-M,69,1,2,2,1,1,2,1,2,2,2,2,2,2,1
-M,74,2,1,1,1,2,2,2,1,1,1,2,2,2,1
-F,59,1,1,1,2,1,2,1,2,1,2,2,1,2,0
-M,63,2,2,2,1,1,1,1,1,2,1,1,2,2,0
-F,63,1,2,1,1,1,1,1,2,1,2,2,1,1,0
-F,75,1,2,1,1,2,2,2,2,1,2,2,1,1,1
-M,52,2,1,1,1,1,2,1,2,2,2,2,1,2,1
-F,51,2,2,2,2,1,2,2,1,1,1,2,2,1,1
-F,68,2,1,2,1,1,2,1,1,1,1,1,1,1,0
-M,53,2,2,2,2,2,1,2,1,2,1,1,2,2,1
-F,61,2,2,2,2,2,2,1,2,1,2,2,2,1,1
-M,72,1,1,1,1,2,2,2,2,2,2,2,1,2,1
-F,60,2,1,1,1,1,2,1,1,1,1,2,1,1,0
-M,58,2,1,1,1,1,2,2,2,2,2,2,1,2,1
-M,69,2,1,1,1,1,1,2,2,2,2,1,1,2,0
-F,48,1,2,2,2,2,2,2,2,1,2,2,1,1,1
-M,75,2,1,1,1,2,1,2,2,2,2,2,1,2,1
-M,57,2,2,2,2,2,1,1,1,2,1,1,2,2,1
-F,68,2,2,2,2,2,2,1,1,1,2,2,1,1,1
-F,61,1,1,1,1,2,2,1,1,1,1,2,1,1,0`;
 
 export const DatasetListPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -86,13 +64,7 @@ export const DatasetListPage: React.FC = () => {
     },
   });
 
-  const handleDemoPreload = () => {
-    const blob = new Blob([DEMO_LUNG_CANCER_CSV], { type: 'text/csv' });
-    const file = new File([blob], 'survey_lung_cancer.csv', { type: 'text/csv' });
-    setSelectedFile(file);
-    setDatasetName('Lung Cancer Demo Sample');
-    setDatasetDesc('20-row demo sample for trying the upload workflow; not a clinical benchmark.');
-  };
+
 
   return (
     <div className="space-y-6">
@@ -105,16 +77,7 @@ export const DatasetListPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => {
-              handleDemoPreload();
-              setShowUploadModal(true);
-            }}
-            className="px-3.5 py-2 bg-quantum-50 hover:bg-quantum-100 text-quantum-700 border border-quantum-200 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors"
-          >
-            <Sparkles className="w-4 h-4 text-quantum-600" />
-            <span>Load 20-row demo CSV</span>
-          </button>
+
           <button
             onClick={() => setShowUploadModal(true)}
             className="btn-primary text-xs flex items-center space-x-2"
@@ -132,12 +95,9 @@ export const DatasetListPage: React.FC = () => {
         <EmptyState
           icon={Database}
           title="No Datasets Ingested Yet"
-          description="Upload a CSV dataset to inspect its actual columns, data types, missing values, and distributions. A clearly labeled 20-row demo is also available for trying the upload flow."
-          actionText="Load 20-row demo CSV"
-          onAction={() => {
-            handleDemoPreload();
-            setShowUploadModal(true);
-          }}
+          description="Upload a CSV dataset to inspect its actual columns, data types, missing values, and distributions."
+          actionText="Upload New Dataset"
+          onAction={() => setShowUploadModal(true)}
         />
       ) : (
         <div className="card-scientific bg-white border border-slate-200 rounded-xl overflow-hidden p-0 shadow-sm">

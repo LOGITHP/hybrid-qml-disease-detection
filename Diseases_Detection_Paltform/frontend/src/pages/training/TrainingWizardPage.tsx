@@ -85,9 +85,30 @@ export const TrainingWizardPage: React.FC = () => {
           <section className="card-scientific space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Uploaded dataset and target</h2>
             <label className="block space-y-1 text-xs font-semibold text-slate-700">
-              Dataset
-              <select value={activeDataset?.id || ''} onChange={(event) => setSelectedDatasetId(event.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
-                {(datasets || []).map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}
+              Dataset & Version
+              <select 
+                value={activeVersion?.id || ''} 
+                onChange={(e) => {
+                  const verId = e.target.value;
+                  const ds = datasets?.find(d => d.versions?.some(v => v.id === verId));
+                  if (ds) {
+                    setSelectedDatasetId(ds.id);
+                    sessionStorage.setItem('activeDatasetVersionId', verId);
+                    // Clear downstream dependencies since we switched dataset
+                    sessionStorage.removeItem('activePreprocessingRunId');
+                    sessionStorage.removeItem('activeFeatureSelectionRunId');
+                  }
+                }}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                <option value="" disabled>Select a dataset version</option>
+                {datasets?.map(ds => (
+                  <optgroup key={ds.id} label={ds.name}>
+                    {ds.versions?.map(v => (
+                      <option key={v.id} value={v.id}>{v.version_tag} ({v.row_count} rows)</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </label>
             <div className="grid grid-cols-2 gap-3 text-xs">
@@ -120,9 +141,12 @@ export const TrainingWizardPage: React.FC = () => {
                 </button>;
               })}
             </div>
-            {activeModel?.model_type === 'vqc' ? <div className="grid grid-cols-2 gap-3 text-xs">
-              <label className="space-y-1">Variational layers<input type="number" min={1} max={5} value={vqcLayers} onChange={(event) => setVqcLayers(Number(event.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2" /></label>
-              <label className="space-y-1">Epochs<input type="number" min={1} max={100} value={vqcEpochs} onChange={(event) => setVqcEpochs(Number(event.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2" /></label>
+            {activeModel?.model_type === 'vqc' ? <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <label className="space-y-1">Variational layers<input type="number" min={1} max={5} value={vqcLayers} onChange={(event) => setVqcLayers(Number(event.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2" /></label>
+                <label className="space-y-1">Epochs<input type="number" min={1} max={100} value={vqcEpochs} onChange={(event) => setVqcEpochs(Number(event.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2" /></label>
+              </div>
+              <Link to="/models/vqc/configure" className="inline-flex items-center gap-2 rounded-lg border border-quantum-200 bg-quantum-50 px-3.5 py-2 text-xs font-semibold text-quantum-700 transition-colors hover:bg-quantum-100"><Atom className="h-4 w-4" /><span>Configure Advanced VQC Settings (Device & Noise)</span></Link>
             </div> : <label className="block max-w-xs space-y-1 text-xs">SVM regularization (C)<input type="number" min={0.001} step={0.1} value={cValue} onChange={(event) => setCValue(Number(event.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2" /></label>}
           </section>
         </div>

@@ -44,26 +44,48 @@ async def generate_prediction(
     if model is None or not selected_features or preprocessor is None:
         raise ValidationError("The trained model artifact is missing its estimator, selected features, or fitted preprocessor.")
 
+    original_features = bundle.get("original_features", [])
+
     raw_items = payload.features if isinstance(payload.features, list) else [payload.features]
     if not raw_items:
         raise ValidationError("Provide at least one input row for prediction.")
     threshold = payload.decision_threshold if payload.decision_threshold is not None else 0.5
     results: List[SinglePredictionResult] = []
     for index, item in enumerate(raw_items):
-        unexpected_features = sorted(set(item) - set(selected_features))
+        unexpected_features = sorted(set(item.keys()) - set(selected_features))
         if unexpected_features:
             raise ValidationError(
                 f"Input contains columns this model was not trained to use: {', '.join(unexpected_features)}."
             )
-        raw_features = {feature: item.get(feature) for feature in selected_features}
+        
+        # Pad with NaNs for any original feature not in selected_features so preprocessor doesn't crash
+        raw_features = {}
+        for feature in original_features:
+            if feature in selected_features:
+                raw_features[feature] = item.get(feature)
+            else:
+                raw_features[feature] = np.nan
+                
+        # If original_features wasn't saved, fallback to just selected_features
+        if not original_features:
+             raw_features = {feature: item.get(feature) for feature in selected_features}
+             
         raw_frame = pd.DataFrame([raw_features]).replace({None: np.nan})
         try:
+            print("raw_features dict:", raw_features)
+            print("raw_frame dtypes:", raw_frame.dtypes)
             x_model = preprocessor.transform(raw_frame)
             order_indices = bundle.get("preprocessor_feature_order_indices")
             if order_indices is not None:
-                x_model = x_model[:, order_indices]
-            probability = float(_positive_class_probabilities(model, x_model)[0])
+                x_model_sliced = x_model[:, order_indices]
+            else:
+                x_model_sliced = x_model
+            print("encoded_feature_names:", bundle.get("encoded_feature_names"))
+            print("order_indices:", order_indices)
+            print("x_model_sliced:", x_model_sliced)
+            probability = float(_positive_class_probabilities(model, x_model_sliced)[0])
         except Exception as exc:
+            print(f"Exception: {exc}")
             raise ValidationError(f"Input values could not be transformed by this model's saved preprocessing: {exc}") from exc
 
         predicted_class = int(probability >= threshold)

@@ -60,6 +60,66 @@ export const PredictionDetailPage: React.FC = () => {
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Submitted feature values</h2>
             <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Feature</th><th className="px-3 py-2">Value</th></tr></thead><tbody className="divide-y divide-slate-100">{result.input_features_used.map((feature) => <tr key={feature}><td className="px-3 py-2 font-mono font-semibold">{feature}</td><td className="px-3 py-2">{inputs[feature] == null ? 'Missing' : String(inputs[feature])}</td></tr>)}</tbody></table></div>
           </section>
+
+          <section className="card-scientific rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Clinician Feedback</h2>
+              <span className="text-[10px] font-semibold text-brand-600 bg-brand-50 px-2 py-1 rounded">Continuous Learning</span>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">Help improve the model by verifying this prediction. Feedback is collected for future retraining.</p>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const isCorrect = (form.elements.namedItem('is_correct') as HTMLSelectElement).value === 'true';
+              const verifiedLabel = (form.elements.namedItem('verified_label') as HTMLInputElement).value;
+              const payload = {
+                prediction_id: predictionId || result.sample_id || 'latest',
+                model_id: response.model_id,
+                is_correct: isCorrect,
+                verified_label: isCorrect ? result.predicted_class : (verifiedLabel ? parseInt(verifiedLabel, 10) : 0),
+                original_input: inputs,
+                notes: (form.elements.namedItem('notes') as HTMLTextAreaElement).value
+              };
+              
+              try {
+                // Submit feedback via API (import feedbackApi or use fetch)
+                const res = await fetch('http://localhost:8000/api/v1/feedback', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('access_token') || 'test'}` },
+                  body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('Failed to submit feedback');
+                alert('Feedback submitted successfully. Thank you!');
+                form.reset();
+              } catch (err) {
+                alert('Error submitting feedback');
+              }
+            }} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block text-xs font-semibold text-slate-700 space-y-1">
+                  <span>Is prediction correct?</span>
+                  <select name="is_correct" className="w-full border-slate-300 rounded-md shadow-sm text-sm p-2 bg-white" required onChange={(e) => {
+                    const labelInput = document.getElementById('verified_label_wrapper');
+                    if (labelInput) labelInput.style.display = e.target.value === 'false' ? 'block' : 'none';
+                  }}>
+                    <option value="">Select...</option>
+                    <option value="true">Yes, correct</option>
+                    <option value="false">No, incorrect</option>
+                  </select>
+                </label>
+                <label id="verified_label_wrapper" className="block text-xs font-semibold text-slate-700 space-y-1" style={{ display: 'none' }}>
+                  <span>Verified Label (0 or 1)</span>
+                  <input type="number" name="verified_label" min="0" max="1" className="w-full border-slate-300 rounded-md shadow-sm text-sm p-2" placeholder="e.g. 1" />
+                </label>
+              </div>
+              <label className="block text-xs font-semibold text-slate-700 space-y-1">
+                <span>Clinical Notes (Optional)</span>
+                <textarea name="notes" className="w-full border-slate-300 rounded-md shadow-sm text-sm p-2" rows={2} placeholder="Any reasoning..."></textarea>
+              </label>
+              <button type="submit" className="btn-primary w-full py-2 text-xs font-semibold">Submit Feedback</button>
+            </form>
+          </section>
         </div>
 
         <aside className="space-y-4">

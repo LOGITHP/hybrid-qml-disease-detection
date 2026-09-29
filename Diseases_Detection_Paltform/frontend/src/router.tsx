@@ -25,6 +25,7 @@ import { PredictionDetailPage } from './pages/predictions/PredictionDetailPage';
 import { EvaluationPage } from './pages/evaluation/EvaluationPage';
 import { ModelComparisonPage } from './pages/evaluation/ModelComparisonPage';
 import { ExplainabilityPage } from './pages/explainability/ExplainabilityPage';
+import { FeedbackRetrainingPage } from './pages/feedback/FeedbackRetrainingPage';
 import { ExperimentListPage } from './pages/experiments/ExperimentListPage';
 import { ExperimentDetailPage } from './pages/experiments/ExperimentDetailPage';
 import { ReportListPage } from './pages/reports/ReportListPage';
@@ -95,6 +96,7 @@ export const router = createBrowserRouter([
       // RESULTS
       { path: '/predictions', element: <PredictionPage /> },
       { path: '/predictions/:predictionId', element: <PredictionDetailPage /> },
+      { path: '/feedback', element: <FeedbackRetrainingPage /> },
       { path: '/evaluation', element: <EvaluationPage /> },
       { path: '/evaluation/:runId', element: <EvaluationPage /> },
       { path: '/evaluation/comparison', element: <ModelComparisonPage /> },

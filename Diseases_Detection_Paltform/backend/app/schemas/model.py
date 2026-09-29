@@ -29,6 +29,11 @@ class ModelResponse(BaseModel):
     is_default: bool = False
     status: str = "created"
     configuration: Dict[str, Any] = Field(default_factory=dict)
+    dataset_id: Optional[str] = None
+    dataset_version_id: Optional[str] = None
+    preprocessing_run_id: Optional[str] = None
+    feature_selection_run_id: Optional[str] = None
+    selected_features_snapshot: Optional[list[str]] = None
     created_at: datetime
     updated_at: datetime
 

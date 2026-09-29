@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 import joblib
 import numpy as np
+import logging
 import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
 
@@ -27,6 +28,9 @@ from app.repositories.training_repository import TrainingRepository
 from app.schemas.preprocessing import PreprocessingPlan, PreprocessingPlanStep
 from app.services.artifact_service import LocalArtifactStorage, artifact_storage
 
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class TrainingService:
     """Train a selected template against an uploaded dataset and its saved pipeline."""
@@ -50,6 +54,7 @@ class TrainingService:
         custom_name: Optional[str] = None,
     ) -> TrainingRun:
         started_at = time.time()
+        logger.debug(f"[TRAINING TRACE] Starting execute_training_run with model_id={model_id}, dataset_version_id={dataset_version_id}")
         hyperparameters = hyperparameters or {}
 
         template = await self.model_repo.get_by_id(model_id)
@@ -68,7 +73,9 @@ class TrainingService:
             raise ValidationError("The feature-selection run does not contain selected feature columns.")
 
         csv_path = f"datasets/{version.dataset_id}/versions/{version.id}/original.csv"
+        logger.debug(f"[TRAINING TRACE] Loading dataset from path: {csv_path}")
         df = pd.read_csv(io.BytesIO(self.storage.load(csv_path)))
+        logger.debug(f"[TRAINING TRACE] Loaded dataset. Shape: {df.shape}")
         if not target or target not in df.columns:
             raise ValidationError("Select a valid target column in Feature Selection before training.")
         if df[target].isna().any():
@@ -96,8 +103,10 @@ class TrainingService:
             dataset_id=str(version.dataset_id), dataset_version_id=str(version.id), steps=steps,
             summary="Saved preprocessing configuration for the selected upload.",
         )
+        logger.debug(f"[TRAINING TRACE] Executing preprocessing plan with {len(steps)} steps. Selected features: {features}")
         processed = PreprocessingAgent().execute_plan(df, plan, target, feature_columns=features)
-        omitted = sorted(set(features) - set(processed["source_feature_names"]))
+        logger.debug(f"[TRAINING TRACE] Preprocessing complete. X_train.shape={processed['X_train'].shape}, X_test.shape={processed['X_test'].shape}")
+        omitted = sorted(set(features) - set(processed["original_features"]))
         if omitted:
             raise ValidationError(
                 f"Selected features are omitted by preprocessing: {', '.join(omitted)}. "
@@ -115,7 +124,7 @@ class TrainingService:
                 column for column in features
                 if not pd.api.types.is_numeric_dtype(df[column]) or pd.api.types.is_bool_dtype(df[column])
             ]
-            if non_numeric or set(processed["source_feature_names"]) != set(features) or len(processed["source_feature_names"]) != len(features):
+            if non_numeric or set(processed["original_features"]) != set(features) or len(processed["original_features"]) != len(features):
                 raise ValidationError("This pretrained checkpoint requires its documented numeric feature set in the exact selected order.")
             scaler_step = next((step for step in steps if step.tool_name.lower() == "min_max_scaler"), None)
             if not scaler_step or set(scaler_step.parameters.get("columns", [])) != set(features):
@@ -131,11 +140,26 @@ class TrainingService:
         target_map = {name: int(name == positive_class) for name in classes}
         y_train = np.asarray([target_map[str(value)] for value in processed["y_train"]], dtype=int)
         y_test = np.asarray([target_map[str(value)] for value in processed["y_test"]], dtype=int)
-        feature_order_indices = None
-        if is_pretrained:
-            feature_order_indices = [processed["source_feature_names"].index(feature) for feature in features]
-            X_train = X_train[:, feature_order_indices]
-            X_test = X_test[:, feature_order_indices]
+        logger.debug(f"[TRAINING TRACE] Target mapping complete. y_train.shape={y_train.shape}, y_test.shape={y_test.shape}")
+        feature_order_indices = []
+        for feature in features:
+            matched_indices = []
+            for i, fname in enumerate(processed["feature_names"]):
+                if fname == feature or fname.endswith(f"__{feature}") or f"__{feature}_" in fname:
+                    matched_indices.append(i)
+            if matched_indices:
+                feature_order_indices.extend(matched_indices)
+            else:
+                # Fallback just in case
+                try:
+                    feature_order_indices.append(processed["original_features"].index(feature))
+                except ValueError:
+                    pass
+
+        X_train = X_train[:, feature_order_indices]
+        X_test = X_test[:, feature_order_indices]
+        
+        logger.debug(f"[TRAINING TRACE] Applied feature selection. X_train.shape={X_train.shape}, X_test.shape={X_test.shape}")
 
         if is_pretrained and template_config.get("model_file"):
             estimator = pretrained_model_loader.load_classical_svm(template_config["model_file"])
@@ -172,8 +196,12 @@ class TrainingService:
         else:
             raise ValidationError(f"Unsupported model type '{template.model_type}'.")
 
+        logger.debug(f"[TRAINING TRACE] Model initialization complete for type {template.model_type}. is_pretrained={is_pretrained}")
+
         if not is_pretrained:
+            logger.debug(f"[TRAINING TRACE] Starting estimator fit...")
             estimator.fit(X_train, y_train)
+            logger.debug(f"[TRAINING TRACE] Estimator fit completed.")
         duration = time.time() - started_at
         probabilities = _positive_class_probabilities(estimator, X_test)
         predictions = (probabilities >= 0.5).astype(int)
@@ -220,6 +248,7 @@ class TrainingService:
         dataset = await self.dataset_repo.get_by_id(version.dataset_id)
         dataset_name = dataset.name if dataset else "Uploaded dataset"
         trained_model_name = custom_name if custom_name else f"{template.name} · {dataset_name} {version.version_tag}"
+        logger.debug(f"[TRAINING TRACE] Creating Model record in database: {trained_model_name}")
         trained_model = await self.model_repo.create(Model(
             user_id=user_id, name=trained_model_name,
             description=f"Trained on uploaded dataset version {version.version_tag}.",
@@ -247,6 +276,7 @@ class TrainingService:
         buffer = io.BytesIO()
         joblib.dump({
             "model": estimator, "selected_features": features,
+            "original_features": processed.get("original_features", []),
             "preprocessor": processed["fitted_pipeline"]["preprocessor"],
             "target_column": target, "target_mapping": target_map, "positive_class": positive_class,
             "encoded_feature_names": processed["feature_names"],
@@ -254,6 +284,7 @@ class TrainingService:
             "preprocessing_run_id": str(preprocessing_run.id) if preprocessing_run else None,
             "feature_selection_run_id": str(feature_run.id),
         }, buffer)
+        logger.debug(f"[TRAINING TRACE] Serializing and saving artifact to models/{trained_model.id}/model.joblib")
         self.storage.save(f"models/{trained_model.id}/model.joblib", buffer.getvalue())
 
         qml_config = None

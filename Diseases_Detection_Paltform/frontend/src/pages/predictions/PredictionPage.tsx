@@ -22,7 +22,9 @@ export const PredictionPage: React.FC = () => {
   const [inputFeatures, setInputFeatures] = useState<Record<string, string | number | null>>({});
 
   const { data: datasets, isLoading: datasetsLoading } = useQuery({ queryKey: ['datasets'], queryFn: datasetsApi.list });
-  const { data: models, isLoading: modelsLoading } = useQuery({ queryKey: ['models'], queryFn: modelsApi.list });
+  const { data: defaultModels, isLoading: defaultsLoading } = useQuery({ queryKey: ['defaultModels'], queryFn: modelsApi.listDefaults });
+  const { data: userModels, isLoading: modelsLoading } = useQuery({ queryKey: ['userModels'], queryFn: modelsApi.list });
+  const mergedModels = useMemo(() => [...(defaultModels || []), ...(userModels || [])], [defaultModels, userModels]);
 
   const storedVersionId = sessionStorage.getItem('activeDatasetVersionId');
   const activeUpload = useMemo(() => {
@@ -48,13 +50,19 @@ export const PredictionPage: React.FC = () => {
     enabled: !!activeUpload,
   });
 
-  const trainedModels = (models || []).filter((model) => {
+  const trainedModels = mergedModels.filter((model) => {
     const config = model.configuration || {};
+    if (config.pretrained) return true;
     if (model.status !== 'trained' || !activeUpload || config.dataset_version_id !== activeUpload.version.id) return false;
     if (expectedTarget && config.target_column !== expectedTarget) return false;
     const featureNames = Array.isArray(config.selected_features) ? config.selected_features as string[] : [];
     return !expectedFeatures.length || sameFeatureSet(featureNames, expectedFeatures);
-  }).sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+  }).sort((left, right) => {
+    // Show user trained models first, then default models
+    if (left.configuration?.pretrained && !right.configuration?.pretrained) return 1;
+    if (!left.configuration?.pretrained && right.configuration?.pretrained) return -1;
+    return Date.parse(right.created_at || '2000-01-01') - Date.parse(left.created_at || '2000-01-01');
+  });
   const activeModel = trainedModels.find((model) => model.id === selectedModelId) || trainedModels[0];
   const features = (activeModel?.configuration?.selected_features || []) as string[];
   const targetColumn = String(activeModel?.configuration?.target_column || analysis?.target_column || expectedTarget || '');
@@ -92,7 +100,7 @@ export const PredictionPage: React.FC = () => {
     },
   });
 
-  if (datasetsLoading || modelsLoading) return <LoadingSkeleton rows={4} />;
+  if (datasetsLoading || modelsLoading || defaultsLoading) return <LoadingSkeleton rows={4} />;
 
   return (
     <div className="space-y-6">

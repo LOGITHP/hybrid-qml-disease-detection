@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     # AI Preprocessing Agent LLM Provider Configuration
     LLM_PROVIDER: str = Field(default="ollama", description="Default LLM provider")
     LLM_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama API base URL")
+    LLM_MODEL: str = Field(default="gemma2:2b", description="Model name used by the configured LLM provider")
 
     # Local Artifacts Storage (if MinIO is not used directly or fallback)
     ARTIFACT_ROOT: str = Field(default="/app/artifacts", description="Root directory for local artifact storage")

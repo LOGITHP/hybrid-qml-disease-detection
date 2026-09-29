@@ -81,7 +81,7 @@ class ExperimentService:
                 model_type = model.model_type if model else "unknown"
                 runs_data.append(
                     {
-                        "run_id": run.id,
+                        "run_id": str(run.id),
                         "model_name": model_name,
                         "model_type": model_type,
                         "metrics": run.metrics,

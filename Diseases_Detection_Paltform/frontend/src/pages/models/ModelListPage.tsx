@@ -25,7 +25,7 @@ export const ModelListPage: React.FC = () => {
           <p className="text-xs text-slate-500">Recorded experiment metrics are shown with their actual checkpoint. New training runs appear with their own held-out results.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/models/vqc/configure" className="flex items-center gap-2 rounded-lg border border-quantum-200 bg-quantum-50 px-3.5 py-2 text-xs font-semibold text-quantum-700"><Atom className="h-4 w-4" /><span>Configure VQC</span></Link>
+
           <Link to="/evaluation/comparison" className="btn-primary flex items-center gap-2 text-xs"><BarChart3 className="h-4 w-4" /><span>Compare trained models</span></Link>
         </div>
       </div>
@@ -58,7 +58,7 @@ export const ModelListPage: React.FC = () => {
                   </div>
                   <p className="text-[10px] text-slate-400">{recordedExperiment ? `Recorded experiment · ${metrics?.test_samples ?? '—'} test rows` : `Held-out test · ${metrics?.test_samples ?? '—'} rows`}</p>
                 </> : <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500">No measured performance is recorded yet. Train this template on an uploaded dataset to create its own metrics.</div>}
-                {source && <p className="break-all text-[10px] text-slate-400">Checkpoint: <span className="font-mono">{source}</span></p>}
+
               </div>
               <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                 <span className="flex items-center text-[11px] text-slate-400">

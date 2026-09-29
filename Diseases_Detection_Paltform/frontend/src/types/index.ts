@@ -74,7 +74,7 @@ export interface DatasetAnalysis {
 }
 
 export interface PreprocessingPlanStep {
-  step_id: number;
+    step_id: number | string;
   tool_name: string;
   rationale: string;
   parameters: Record<string, any>;
@@ -84,9 +84,13 @@ export interface PreprocessingPlanStep {
 export interface PreprocessingPlan {
   dataset_id: string;
   dataset_version_id: string;
+  target_column?: string | null;
   steps: PreprocessingPlanStep[];
   summary: string;
   leakage_prevention_guarantee: string;
+  generation_method?: 'rule_based' | 'llm' | 'user_defined';
+  generation_provider?: string | null;
+  generation_note?: string;
 }
 
 export interface PreprocessingRunResult {
@@ -94,6 +98,8 @@ export interface PreprocessingRunResult {
   preprocessing_run_id: string;
   dataset_version_id: string;
   target_column: string;
+  plan_generation_method?: 'rule_based' | 'llm' | 'user_defined';
+  plan_generation_provider?: string | null;
   status: string;
   train_samples: number;
   val_samples: number;

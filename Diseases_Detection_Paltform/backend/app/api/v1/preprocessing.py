@@ -10,7 +10,7 @@ from app.agents.preprocessing_agent.interface import PreprocessingAgent
 from app.core.dependencies import get_current_user, get_dataset_service
 from app.database.models.user import User
 from app.schemas.common import StandardResponse
-from app.schemas.preprocessing import PreprocessingPlan, PreprocessingPlanStep, AIModifyRequest, AIModifyResponse, AILogicChange
+from app.schemas.preprocessing import PreprocessingPlan, PreprocessingPlanStep, AIModifyRequest, AIModifyResponse
 from app.services.dataset_service import DatasetService
 from app.services.artifact_service import artifact_storage
 
@@ -27,6 +27,8 @@ class ExecutePlanRequest(BaseModel):
     target_column: Optional[str] = None
     mode: str = "ai"
     steps: Optional[List[PreprocessingPlanStep]] = None
+    generation_method: str = "rule_based"
+    generation_provider: Optional[str] = None
 
 
 @router.post("/plan", response_model=StandardResponse[PreprocessingPlan], status_code=status.HTTP_200_OK)
@@ -35,7 +37,7 @@ async def generate_preprocessing_plan(
     current_user: User = Depends(get_current_user),
     dataset_service: DatasetService = Depends(get_dataset_service),
 ):
-    """Generate an AI-driven, leak-free preprocessing plan proposed by Gemma LLM."""
+    """Generate a schema-aware preprocessing plan for the selected uploaded dataset."""
     version = await dataset_service.get_version(
         version_id=payload.dataset_version_id,
         user_id=str(current_user.id),
@@ -61,7 +63,7 @@ async def generate_preprocessing_plan(
     plan.dataset_version_id = str(version.id)
 
     return StandardResponse(
-        message="AI preprocessing plan formulated successfully.",
+        message="Schema-based preprocessing plan generated successfully.",
         data=plan,
     )
 
@@ -122,7 +124,11 @@ async def execute_preprocessing_plan(
         dataset_version_id=str(version.id),
         user_id=str(current_user.id),
         status="completed",
-        config_params={"mode": payload.mode}
+        config_params={
+            "mode": payload.mode,
+            "plan_generation_method": payload.generation_method,
+            "plan_generation_provider": payload.generation_provider,
+        }
     )
     await preprocessing_run.insert()
 
@@ -132,7 +138,11 @@ async def execute_preprocessing_plan(
         preprocessing_run_id=str(preprocessing_run.id),
         user_id=str(current_user.id),
         pipeline_version=1,
-        pipeline_config=[step.model_dump(mode="json") for step in plan.steps],
+        pipeline_config={
+            "steps": [step.model_dump(mode="json") for step in plan.steps],
+            "generation_method": payload.generation_method,
+            "generation_provider": payload.generation_provider,
+        },
         original_features=result["original_features"],
         selected_features=result["selected_features"],
         final_features=result["feature_names"],
@@ -156,6 +166,8 @@ async def execute_preprocessing_plan(
             "preprocessing_run_id": str(preprocessing_run.id),
             "dataset_version_id": str(version.id),
             "target_column": target_column,
+            "plan_generation_method": payload.generation_method,
+            "plan_generation_provider": payload.generation_provider,
             "status": "completed",
             "is_ready_for_training": True,
             "train_samples": result["train_samples"],
@@ -164,7 +176,10 @@ async def execute_preprocessing_plan(
             "feature_names": result["feature_names"],
             "outlier_rows_removed": result["outlier_rows_removed"],
             "unencoded_categorical_columns": result["unencoded_categorical_columns"],
-            "leakage_audit": "PASSED: Transformers fitted strictly on train partition.",
+            "leakage_audit": (
+                "Split-before-fit check passed: transformers were fitted on training rows and reused unchanged "
+                "for validation/test. Patient-group and duplicate-row leakage are not assessed."
+            ),
         },
     )
 
@@ -192,13 +207,25 @@ async def list_preprocessing_artifacts(
 @router.post("/ai/modify", response_model=StandardResponse[AIModifyResponse], status_code=status.HTTP_200_OK)
 async def modify_pipeline_nlp(
     payload: AIModifyRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    dataset_service: DatasetService = Depends(get_dataset_service),
 ):
-    """Modify the current preprocessing pipeline using AI Agent."""
+    """Refine the current plan with the configured LLM and validate it against the uploaded schema."""
+    version = await dataset_service.get_version(
+        version_id=payload.dataset_version_id,
+        user_id=str(current_user.id),
+        is_admin=(current_user.role == "admin"),
+    )
+    if str(version.dataset_id) != payload.dataset_id:
+        from app.core.exceptions import ValidationError
+        raise ValidationError("The selected dataset version does not belong to the plan's dataset.")
+    if payload.current_pipeline.dataset_id != payload.dataset_id:
+        from app.core.exceptions import ValidationError
+        raise ValidationError("The current plan belongs to a different dataset. Rebuild it before requesting an update.")
+
+    df = dataset_service.load_version_dataframe(dataset_id=version.dataset_id, version_id=version.id)
     agent = PreprocessingAgent()
-    # Call the AI to parse natural language into structured changes
-    # This assumes the AI has a method for this, which we will implement next
-    result = await agent.modify_pipeline(payload)
+    result = await agent.modify_pipeline(payload, df)
     
     return StandardResponse(
         message="AI evaluated the instruction and produced a modification response.",

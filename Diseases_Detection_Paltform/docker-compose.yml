@@ -56,10 +56,22 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434"]
+      test: ["CMD", "ollama", "list"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  ollama-model-init:
+    image: ollama/ollama:latest
+    container_name: hybrid_qml_ollama_model_init
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["until /bin/ollama pull gemma2:2b; do echo 'Model download failed; retrying in 30 seconds'; sleep 30; done"]
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
 
   backend:
     build:
@@ -87,6 +99,7 @@ services:
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8000,http://frontend:80
       - LLM_PROVIDER=ollama
       - LLM_BASE_URL=http://ollama:11434
+      - LLM_MODEL=gemma2:2b
       - EXPERIMENT_ROOT=/workspace/Experimental_ML/Lung_Cancer
     volumes:
       - ./backend:/app
@@ -119,6 +132,7 @@ services:
       - MINIO_SECRET_KEY=minioadmin
       - LLM_PROVIDER=ollama
       - LLM_BASE_URL=http://ollama:11434
+      - LLM_MODEL=gemma2:2b
       - EXPERIMENT_ROOT=/workspace/Experimental_ML/Lung_Cancer
     volumes:
       - ./backend:/app

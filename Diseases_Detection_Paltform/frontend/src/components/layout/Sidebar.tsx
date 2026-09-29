@@ -17,6 +17,7 @@ import {
   Settings,
   LogOut,
   Atom,
+  RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -39,6 +40,7 @@ const navigationGroups = [
       { name: 'Models Zoo', path: '/models', icon: Layers },
       { name: 'Training', path: '/training', icon: Cpu },
       { name: 'Quantum', path: '/quantum', icon: Zap },
+      { name: 'Feedback & Retrain', path: '/feedback', icon: RotateCcw },
     ],
   },
   {

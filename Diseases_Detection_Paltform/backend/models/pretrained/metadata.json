@@ -2,7 +2,7 @@
   "models": [
     {
       "model_id": "pretrained-cml-svm-linear-4",
-      "model_name": "Classical Linear SVM (4 Features)",
+      "model_name": "Lung Cancer - Linear SVM - 4 features",
       "model_type": "svm_linear",
       "feature_count": 4,
       "selected_features": [
@@ -19,13 +19,13 @@
         "probability": true
       },
       "metrics": {
-        "accuracy": 0.5089,
-        "balanced_accuracy": 0.5088,
-        "sensitivity": 0.5198,
-        "specificity": 0.4978,
-        "precision": 0.5130,
-        "f1_score": 0.5164,
-        "roc_auc": 0.5244,
+        "accuracy": 0.5088888888888888,
+        "balanced_accuracy": 0.5087908180399439,
+        "sensitivity": 0.5198237885462555,
+        "specificity": 0.4977578475336323,
+        "precision": 0.5130434782608696,
+        "f1_score": 0.5164113785557987,
+        "roc_auc": 0.49721459473341106,
         "training_duration_seconds": 1.25,
         "confusion_matrix": {
           "true_negative": 111,
@@ -34,11 +34,11 @@
           "true_positive": 118
         }
       },
-      "source_experiment": "Experimental_ML/Lung_Cancer/CML/4-feature/models"
+      "pretrained": true
     },
     {
       "model_id": "pretrained-cml-svm-rbf-4",
-      "model_name": "Classical RBF SVM (4 Features)",
+      "model_name": "Lung Cancer - RBF SVM - 4 features",
       "model_type": "svm_rbf",
       "feature_count": 4,
       "selected_features": [
@@ -56,26 +56,26 @@
         "probability": true
       },
       "metrics": {
-        "accuracy": 0.5089,
-        "balanced_accuracy": 0.5088,
-        "sensitivity": 0.5198,
-        "specificity": 0.4978,
-        "precision": 0.5130,
-        "f1_score": 0.5164,
-        "roc_auc": 0.5281,
+        "accuracy": 0.5244444444444445,
+        "balanced_accuracy": 0.524564903893641,
+        "sensitivity": 0.5110132158590308,
+        "specificity": 0.5381165919282511,
+        "precision": 0.5296803652968036,
+        "f1_score": 0.5201793721973094,
+        "roc_auc": 0.5317951047984038,
         "training_duration_seconds": 1.48,
         "confusion_matrix": {
-          "true_negative": 111,
-          "false_positive": 112,
-          "false_negative": 109,
-          "true_positive": 118
+          "true_negative": 120,
+          "false_positive": 103,
+          "false_negative": 111,
+          "true_positive": 116
         }
       },
-      "source_experiment": "Experimental_ML/Lung_Cancer/CML/4-feature/models"
+      "pretrained": true
     },
     {
       "model_id": "pretrained-qml-vqc-4-noiseless",
-      "model_name": "4-Qubit Variational Quantum Classifier (Noiseless)",
+      "model_name": "Lung Cancer - VQC - 4 features - 2 layers",
       "model_type": "vqc",
       "feature_count": 4,
       "n_qubits": 4,
@@ -98,7 +98,7 @@
         "balanced_accuracy": 0.5269,
         "sensitivity": 0.4978,
         "specificity": 0.5561,
-        "precision": 0.5330,
+        "precision": 0.533,
         "f1_score": 0.5148,
         "roc_auc": 0.5147,
         "training_duration_seconds": 14.82,
@@ -109,11 +109,11 @@
           "true_positive": 113
         }
       },
-      "source_experiment": "Experimental_ML/Lung_Cancer/HQML/4-feature-VQC/model"
+      "pretrained": true
     },
     {
       "model_id": "pretrained-qml-vqc-4-noisy",
-      "model_name": "4-Qubit Variational Quantum Classifier (Noisy NISQ)",
+      "model_name": "Lung Cancer - VQC (Noisy) - 4 features - 2 layers",
       "model_type": "vqc",
       "feature_count": 4,
       "n_qubits": 4,
@@ -135,7 +135,7 @@
       },
       "metrics": {
         "accuracy": 0.5267,
-        "balanced_accuracy": 0.5270,
+        "balanced_accuracy": 0.527,
         "sensitivity": 0.4934,
         "specificity": 0.5605,
         "precision": 0.5333,
@@ -149,11 +149,11 @@
           "true_positive": 112
         }
       },
-      "source_experiment": "Experimental_ML/Lung_Cancer/HQML/4-feature-VQC-Noisy/model"
+      "pretrained": true
     },
     {
       "model_id": "pretrained-qml-vqc-6-noiseless",
-      "model_name": "6-Qubit Variational Quantum Classifier",
+      "model_name": "Lung Cancer - VQC - 6 features - 2 layers",
       "model_type": "vqc",
       "feature_count": 6,
       "n_qubits": 6,
@@ -164,25 +164,33 @@
       "quantum_device": "default.qubit",
       "metrics": {
         "accuracy": 0.5311,
-        "balanced_accuracy": 0.5310,
-        "sensitivity": 0.5022,
-        "specificity": 0.5600,
-        "precision": 0.5350,
-        "f1_score": 0.5180,
-        "roc_auc": 0.5210,
+        "balanced_accuracy": 0.5292,
+        "sensitivity": 0.7445,
+        "specificity": 0.3139,
+        "precision": 0.5248,
+        "f1_score": 0.6157,
+        "roc_auc": 0.5555,
         "training_duration_seconds": 22.15,
         "confusion_matrix": {
-          "true_negative": 126,
-          "false_positive": 99,
-          "false_negative": 112,
-          "true_positive": 113
+          "true_negative": 70,
+          "false_positive": 153,
+          "false_negative": 58,
+          "true_positive": 169
         }
       },
-      "source_experiment": "Experimental_ML/Lung_Cancer/HQML/6-feature-VQC/model"
+      "selected_features": [
+        "COUGHING",
+        "PEER_PRESSURE",
+        "AGE",
+        "YELLOW_FINGERS",
+        "SHORTNESS_OF_BREATH",
+        "CHEST_PAIN"
+      ],
+      "pretrained": true
     },
     {
       "model_id": "pretrained-qml-vqc-8-noiseless",
-      "model_name": "8-Qubit Variational Quantum Classifier",
+      "model_name": "Lung Cancer - VQC - 8 features - 2 layers",
       "model_type": "vqc",
       "feature_count": 8,
       "n_qubits": 8,
@@ -192,22 +200,32 @@
       "framework": "PennyLane",
       "quantum_device": "default.qubit",
       "metrics": {
-        "accuracy": 0.5356,
-        "balanced_accuracy": 0.5355,
-        "sensitivity": 0.5111,
-        "specificity": 0.5600,
-        "precision": 0.5395,
-        "f1_score": 0.5249,
-        "roc_auc": 0.5285,
-        "training_duration_seconds": 35.40,
+        "accuracy": 0.4844,
+        "balanced_accuracy": 0.485,
+        "sensitivity": 0.4273,
+        "specificity": 0.5426,
+        "precision": 0.4874,
+        "f1_score": 0.4554,
+        "roc_auc": 0.499,
+        "training_duration_seconds": 35.4,
         "confusion_matrix": {
-          "true_negative": 126,
-          "false_positive": 99,
-          "false_negative": 110,
-          "true_positive": 115
+          "true_negative": 121,
+          "false_positive": 102,
+          "false_negative": 130,
+          "true_positive": 97
         }
       },
-      "source_experiment": "Experimental_ML/Lung_Cancer/HQML/8-feature-VQC/model"
+      "selected_features": [
+        "COUGHING",
+        "PEER_PRESSURE",
+        "AGE",
+        "ANXIETY",
+        "ALLERGY",
+        "SHORTNESS_OF_BREATH",
+        "CHEST_PAIN",
+        "CHRONIC_DISEASE"
+      ],
+      "pretrained": true
     }
   ]
 }
