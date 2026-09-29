@@ -96,6 +96,7 @@ export const router = createBrowserRouter([
       { path: '/predictions', element: <PredictionPage /> },
       { path: '/predictions/:predictionId', element: <PredictionDetailPage /> },
       { path: '/evaluation', element: <EvaluationPage /> },
+      { path: '/evaluation/:runId', element: <EvaluationPage /> },
       { path: '/evaluation/comparison', element: <ModelComparisonPage /> },
       { path: '/explainability/:predictionId', element: <ExplainabilityPage /> },
 

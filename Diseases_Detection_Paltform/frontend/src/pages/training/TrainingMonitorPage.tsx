@@ -21,14 +21,21 @@ export const TrainingMonitorPage: React.FC = () => {
 
   const metrics = run.metrics || {};
   const metricCards = [
-    ['Held-out test accuracy', metrics.accuracy],
-    ['Balanced accuracy', metrics.balanced_accuracy],
-    ['Sensitivity', metrics.sensitivity],
-    ['Specificity', metrics.specificity],
-    ['Precision', metrics.precision],
-    ['F1 score', metrics.f1_score],
-    ['ROC AUC', metrics.roc_auc],
+    ['Held-out test accuracy', 'accuracy'],
+    ['Balanced accuracy', 'balanced_accuracy'],
+    ['Sensitivity', 'sensitivity'],
+    ['Specificity', 'specificity'],
+    ['Precision', 'precision'],
+    ['F1 score', 'f1_score'],
+    ['ROC AUC', 'roc_auc'],
   ] as const;
+  const confusion = metrics.confusion_matrix || {};
+  const confusionEntries = [
+    ['True positive', confusion.tp ?? confusion.true_positive],
+    ['True negative', confusion.tn ?? confusion.true_negative],
+    ['False positive', confusion.fp ?? confusion.false_positive],
+    ['False negative', confusion.fn ?? confusion.false_negative],
+  ];
 
   return (
     <div className="space-y-6">
@@ -40,6 +47,7 @@ export const TrainingMonitorPage: React.FC = () => {
         </div>
         <div className="flex gap-2">
           {run.experiment_id && <Link to={`/experiments/${run.experiment_id}`} className="btn-secondary inline-flex items-center gap-2 text-xs"><BarChart3 className="h-4 w-4" />Experiment record</Link>}
+          {run.status === 'completed' && <Link to={`/models/${run.model_id}`} className="btn-secondary inline-flex items-center gap-2 text-xs"><BarChart3 className="h-4 w-4" />Saved model metrics</Link>}
           <Link to="/predictions" className="btn-primary inline-flex items-center gap-2 text-xs"><Activity className="h-4 w-4" />Run prediction</Link>
         </div>
       </header>
@@ -51,12 +59,16 @@ export const TrainingMonitorPage: React.FC = () => {
           <div className="rounded-lg bg-slate-50 p-3"><span className="mb-1 block text-slate-500">Target</span><span className="font-mono">{String(metrics.target_column || 'Not recorded')}</span></div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {metricCards.map(([label, value]) => <div key={label} className="rounded-lg border border-slate-200 p-4">
+          {metricCards.map(([label, key]) => <div key={key} className="rounded-lg border border-slate-200 p-4">
             <span className="block text-[11px] text-slate-500">{label}</span>
-            <span className="mt-1 block text-xl font-bold text-slate-900">{typeof value === 'number' ? `${(value * 100).toFixed(1)}%` : 'Unavailable'}</span>
+            <span className="mt-1 block text-xl font-bold text-slate-900">{typeof metrics[key] === 'number' ? key === 'roc_auc' ? metrics[key].toFixed(3) : `${(metrics[key] * 100).toFixed(1)}%` : 'Unavailable'}</span>
           </div>)}
         </div>
-        <p className="text-[11px] text-slate-500">Training duration: {typeof metrics.training_duration_seconds === 'number' ? `${metrics.training_duration_seconds.toFixed(3)} seconds` : 'Unavailable'} · Positive class: {String(metrics.positive_class || 'Not recorded')} · ROC AUC is unavailable when the held-out partition contains one class.</p>
+        <p className="text-[11px] text-slate-500">Held-out test rows: {typeof metrics.test_samples === 'number' ? metrics.test_samples : 'Unavailable'} · Training duration: {typeof metrics.training_duration_seconds === 'number' ? `${metrics.training_duration_seconds.toFixed(3)} seconds` : 'Unavailable'} · Positive class: {String(metrics.positive_class || 'Not recorded')} · ROC AUC is unavailable when the held-out partition contains one class.</p>
+        {confusionEntries.some(([, value]) => typeof value === 'number') && <div>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700">Held-out confusion matrix counts</h2>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{confusionEntries.map(([label, value]) => <div key={String(label)} className="rounded-lg bg-slate-50 p-3 text-xs"><span className="block text-slate-500">{label}</span><b className="text-base text-slate-900">{typeof value === 'number' ? value : '—'}</b></div>)}</div>
+        </div>}
       </section>
 
       <section className="card-scientific space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

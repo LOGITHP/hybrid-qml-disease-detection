@@ -1,74 +1,54 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Download, ArrowRight, CheckCircle2, Printer } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, FileText } from 'lucide-react';
+import { modelsApi } from '../../api';
+import { Model } from '../../types';
+import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
+
+const hasPerformance = (model: Model) => {
+  const metrics = model.configuration?.metrics || model.versions?.[0]?.metrics;
+  return typeof metrics?.accuracy === 'number';
+};
 
 export const ReportListPage: React.FC = () => {
-  const reports = [
-    {
-      id: 'rep-oncology-benchmark-2026',
-      title: 'Clinical Lung Cancer Screening Benchmark Audit',
-      type: 'Comparative Evaluation Report',
-      date: 'September 2026',
-      models: 'SVM Linear, SVM RBF, PennyLane VQC (4 Qubits)',
-      status: 'Audited & Signed',
-    },
-    {
-      id: 'rep-preprocessing-audit-01',
-      title: 'AI Preprocessing & Data Leakage Compliance Ledger',
-      type: 'Data Governance Audit',
-      date: 'September 2026',
-      models: 'Scikit-Learn Deterministic Pipeline & Gemma LLM',
-      status: 'Verified Leak-Free',
-    },
-  ];
+  const { data: defaults, isLoading: defaultsLoading } = useQuery({
+    queryKey: ['defaultModels'], queryFn: modelsApi.listDefaults,
+  });
+  const { data: userModels, isLoading: userModelsLoading } = useQuery({
+    queryKey: ['userModels'], queryFn: modelsApi.list,
+  });
+
+  const combined = [...(defaults || []), ...(userModels || [])];
+  const models = combined.filter((model, index) => combined.findIndex((candidate) => candidate.id === model.id) === index);
+  const measured = models.filter(hasPerformance);
+  const checkpoints = measured.filter((model) => model.configuration?.pretrained).length;
+  const trainedRuns = measured.filter((model) => !!model.configuration?.dataset_version_id).length;
+
+  if (defaultsLoading || userModelsLoading) return <LoadingSkeleton rows={3} />;
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="pb-4 border-b border-slate-200">
-        <div className="flex items-center space-x-2 text-xs font-semibold text-brand-700 uppercase tracking-wider mb-1">
-          <FileText className="w-4 h-4 text-quantum-600" />
-          <span>Clinical Research Documentation</span>
+      <div className="border-b border-slate-200 pb-4">
+        <div className="mb-1 flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-brand-700">
+          <FileText className="h-4 w-4 text-quantum-600" /><span>Saved evaluation results</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Screening Audit Reports
-        </h1>
-        <p className="text-xs text-slate-500">
-          Executive clinical summaries, benchmark tables, and regulatory reproducibility reports
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Model performance report</h1>
+        <p className="text-xs text-slate-500">Source checkpoint results and held-out performance for models trained on your uploaded datasets.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {reports.map((rep) => (
-          <div
-            key={rep.id}
-            className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col justify-between space-y-4"
-          >
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="badge bg-slate-100 text-slate-700 text-[10px]">{rep.type}</span>
-                <span className="text-[11px] font-mono text-slate-400">{rep.date}</span>
-              </div>
-              <h3 className="text-base font-bold text-slate-900">{rep.title}</h3>
-              <p className="text-xs text-slate-500">Classifiers: {rep.models}</p>
-            </div>
+      <article className="card-scientific flex flex-col justify-between space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center">
+        <div className="space-y-2">
+          <span className="badge bg-slate-100 text-[10px] text-slate-700">Generated from saved model metrics</span>
+          <h2 className="text-base font-bold text-slate-900">Experimental_ML checkpoints and your training runs</h2>
+          <p className="text-xs text-slate-500">{measured.length} model results · {checkpoints} experiment checkpoints · {trainedRuns} uploaded-data training runs</p>
+        </div>
+        <Link to="/reports/model-performance" className="btn-primary flex shrink-0 items-center space-x-1.5 text-xs">
+          <span>View performance report</span><ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </article>
 
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-semibold text-emerald-700 flex items-center">
-                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                {rep.status}
-              </span>
-              <Link
-                to={`/reports/${rep.id}`}
-                className="btn-primary text-xs py-1.5 px-3 flex items-center space-x-1"
-              >
-                <span>View Full Report</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </div>
-        ))}
-      </div>
+      {!measured.length && <p className="text-xs text-slate-500">No saved metrics yet. Experiment checkpoints appear when their source artifacts are loaded; upload a dataset and train a model to add a measured run.</p>}
     </div>
   );
 };

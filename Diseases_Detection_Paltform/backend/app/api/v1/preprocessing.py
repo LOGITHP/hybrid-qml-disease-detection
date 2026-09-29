@@ -10,7 +10,7 @@ from app.agents.preprocessing_agent.interface import PreprocessingAgent
 from app.core.dependencies import get_current_user, get_dataset_service
 from app.database.models.user import User
 from app.schemas.common import StandardResponse
-from app.schemas.preprocessing import PreprocessingPlan, PreprocessingPlanStep
+from app.schemas.preprocessing import PreprocessingPlan, PreprocessingPlanStep, AIModifyRequest, AIModifyResponse, AILogicChange
 from app.services.dataset_service import DatasetService
 from app.services.artifact_service import artifact_storage
 
@@ -113,37 +113,41 @@ async def execute_preprocessing_plan(
     joblib.dump(result, buffer)
     artifact_storage.save(artifact_path, buffer.getvalue())
 
-    from app.database.models.preprocessing import PreprocessingRun
+    from app.database.models.preprocessing import PreprocessingRun, PreprocessingArtifact
+    import sklearn
+    import pandas as pd
+    import numpy as np
+
     preprocessing_run = PreprocessingRun(
         dataset_version_id=str(version.id),
         user_id=str(current_user.id),
         status="completed",
-        is_ready_for_training=True,
-        artifact_storage_path=artifact_path,
-        target_column=target_column,
-        original_feature_count=df.shape[1] - 1,
-        final_feature_count=len(result["feature_names"]),
-        final_feature_names=result["feature_names"],
-        config_params={
-            "target_column": target_column,
-            "mode": payload.mode,
-            "steps": [step.model_dump(mode="json") for step in plan.steps],
-        },
-        imputation_strategy=next((
-            str(step.parameters.get("strategy", step.tool_name))
-            for step in plan.steps
-            if "imput" in step.tool_name.lower()
-        ), None),
-        scaling_strategy=next((
-            step.tool_name for step in plan.steps
-            if any(name in step.tool_name.lower() for name in ("scaler", "normalizer"))
-        ), None),
-        encoding_strategy=next((
-            step.tool_name for step in plan.steps
-            if "encoder" in step.tool_name.lower()
-        ), None),
+        config_params={"mode": payload.mode}
     )
     await preprocessing_run.insert()
+
+    artifact = PreprocessingArtifact(
+        dataset_id=str(version.dataset_id),
+        dataset_version_id=str(version.id),
+        preprocessing_run_id=str(preprocessing_run.id),
+        user_id=str(current_user.id),
+        pipeline_version=1,
+        pipeline_config=[step.model_dump(mode="json") for step in plan.steps],
+        original_features=result["original_features"],
+        selected_features=result["selected_features"],
+        final_features=result["feature_names"],
+        target_column=target_column,
+        train_split_metadata={"samples": result["train_samples"]},
+        validation_split_metadata={"samples": result["val_samples"]},
+        test_split_metadata={"samples": result["test_samples"]},
+        feature_schema={f: "float64" for f in result["feature_names"]},
+        final_feature_count=len(result["feature_names"]),
+        output_dataset_location="n/a",
+        artifact_storage_path=artifact_path,
+        library_versions={"sklearn": sklearn.__version__, "pandas": pd.__version__, "numpy": np.__version__},
+        status="ready"
+    )
+    await artifact.insert()
 
     return StandardResponse(
         message="Preprocessing executed successfully with data leakage prevention.",
@@ -170,13 +174,33 @@ async def list_preprocessing_artifacts(
     dataset_version_id: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
-    from app.database.models.preprocessing import PreprocessingRun
-    query = {"user_id": str(current_user.id), "is_ready_for_training": True}
+    from app.database.models.preprocessing import PreprocessingRun, PreprocessingArtifact
+    
+    query = {"user_id": str(current_user.id)}
     if dataset_version_id:
         query["dataset_version_id"] = dataset_version_id
-    runs = await PreprocessingRun.find(query).to_list()
+    
+    # Fetch from the new PreprocessingArtifact collection
+    artifacts = await PreprocessingArtifact.find(query).to_list()
     
     return StandardResponse(
         message="Fetched preprocessing artifacts.",
-        data=[r.model_dump(mode="json") for r in runs]
+        data=[a.model_dump(mode="json") for a in artifacts]
+    )
+
+
+@router.post("/ai/modify", response_model=StandardResponse[AIModifyResponse], status_code=status.HTTP_200_OK)
+async def modify_pipeline_nlp(
+    payload: AIModifyRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Modify the current preprocessing pipeline using AI Agent."""
+    agent = PreprocessingAgent()
+    # Call the AI to parse natural language into structured changes
+    # This assumes the AI has a method for this, which we will implement next
+    result = await agent.modify_pipeline(payload)
+    
+    return StandardResponse(
+        message="AI evaluated the instruction and produced a modification response.",
+        data=result
     )

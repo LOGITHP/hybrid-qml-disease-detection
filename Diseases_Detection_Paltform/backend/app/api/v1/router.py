@@ -12,6 +12,7 @@ from app.api.v1.predictions import router as predictions_router
 from app.api.v1.quantum import router as quantum_router
 from app.api.v1.experiments import router as experiments_router
 from app.api.v1.artifacts import router as artifacts_router
+from app.api.v1.evaluation import router as evaluation_router
 
 api_v1_router = APIRouter()
 
@@ -26,3 +27,4 @@ api_v1_router.include_router(predictions_router)
 api_v1_router.include_router(quantum_router)
 api_v1_router.include_router(experiments_router)
 api_v1_router.include_router(artifacts_router)
+api_v1_router.include_router(evaluation_router)

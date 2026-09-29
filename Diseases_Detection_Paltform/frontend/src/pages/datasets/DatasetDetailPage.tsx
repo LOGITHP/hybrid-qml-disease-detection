@@ -27,7 +27,9 @@ export const DatasetDetailPage: React.FC = () => {
     enabled: !!id,
   });
 
-  const latestVersion = dataset?.versions?.[0];
+  const activeVersionId = sessionStorage.getItem('activeDatasetVersionId');
+  const latestVersion = dataset?.versions?.find((version) => version.id === activeVersionId)
+    || [...(dataset?.versions || [])].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0];
 
   const { data: analysis } = useQuery({
     queryKey: ['datasetAnalysis', id, latestVersion?.id],
@@ -49,10 +51,12 @@ export const DatasetDetailPage: React.FC = () => {
     );
   }
 
-  const columns = analysis?.columns || [];
-  const targetCol = analysis?.target_column || 'Unknown Target';
-  const totalRows = analysis?.row_count || latestVersion?.row_count || 0;
-  const totalCols = analysis?.column_count || latestVersion?.column_count || 0;
+  const columns = analysis?.columns || latestVersion?.dataset_metadata?.columns || [];
+  const targetCol = analysis?.target_column || 'Not selected';
+  const totalRows = analysis?.row_count ?? latestVersion?.row_count ?? '—';
+  const totalCols = analysis?.column_count ?? latestVersion?.column_count ?? '—';
+  const missingCounts = analysis?.missing_value_counts;
+  const hasMissingValues = missingCounts ? Object.values(missingCounts).some((count) => count > 0) : undefined;
 
   return (
     <div className="space-y-6">
@@ -61,10 +65,10 @@ export const DatasetDetailPage: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <span className="text-xs font-mono text-slate-400">ID: {dataset.id.slice(0, 8)}...</span>
-            <StatusBadge status={latestVersion?.status || 'validated'} size="sm" />
+            <StatusBadge status={latestVersion?.status || 'No version'} size="sm" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">{dataset.name}</h1>
-          <p className="text-xs text-slate-500">{dataset.description || 'Clinical trial cohort'}</p>
+          <p className="text-xs text-slate-500">{dataset.description || 'No description recorded.'}</p>
         </div>
 
         <Link
@@ -82,8 +86,8 @@ export const DatasetDetailPage: React.FC = () => {
         <nav className="flex space-x-6">
           {[
             { id: 'overview', label: 'Overview', icon: Database },
-            { id: 'schema', label: 'Biomarker Schema', icon: Table },
-            { id: 'quality', label: 'Data Quality & Imbalance', icon: ShieldCheck },
+            { id: 'schema', label: 'Column Schema', icon: Table },
+            { id: 'quality', label: 'Data Quality & Target', icon: ShieldCheck },
             { id: 'versions', label: 'Version History', icon: History },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -112,7 +116,7 @@ export const DatasetDetailPage: React.FC = () => {
           <div className="md:col-span-2 space-y-4">
             <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Cohort Summary
+                Uploaded Dataset Summary
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div className="p-3 bg-slate-50 rounded-lg">
@@ -130,12 +134,12 @@ export const DatasetDetailPage: React.FC = () => {
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <span className="text-slate-400 block text-[11px]">Active Version</span>
                   <span className="text-lg font-bold text-quantum-700 font-mono">
-                    {latestVersion?.version_tag || 'v1.0'}
+                    {latestVersion?.version_tag || '—'}
                   </span>
                 </div>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed pt-2">
-                Uploaded file: <span className="font-mono">{analysis?.file_metadata?.filename || latestVersion?.dataset_metadata?.filename || 'Loading file metadata'}</span>
+                Uploaded file: <span className="font-mono">{analysis?.file_metadata?.filename || latestVersion?.dataset_metadata?.filename || '—'}</span>
                 {analysis?.file_metadata?.file_size_bytes != null && ` · ${(analysis.file_metadata.file_size_bytes / 1024).toFixed(1)} KB`}
               </p>
             </div>
@@ -144,7 +148,7 @@ export const DatasetDetailPage: React.FC = () => {
           <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Next Action</h3>
             <p className="text-xs text-slate-500">
-              Run AI Preprocessing to generate leak-free stratified splits and review Gemma LLM clinical recommendations.
+              Choose preprocessing steps for this dataset, review the generated plan, and save the configuration before training.
             </p>
             <Link
               to="/preprocessing"
@@ -174,15 +178,17 @@ export const DatasetDetailPage: React.FC = () => {
               {columns.map((col) => {
                 const isTarget = col === targetCol;
                 const profile = analysis?.column_profiles?.[col];
-                const missingCount = analysis?.missing_value_counts?.[col] || 0;
-                const missingPct = totalRows > 0 ? ((missingCount / totalRows) * 100).toFixed(1) : '0.0';
+                const missingCount = analysis?.missing_value_counts?.[col];
+                const missingPct = typeof missingCount === 'number' && typeof totalRows === 'number' && totalRows > 0
+                  ? `${((missingCount / totalRows) * 100).toFixed(1)}%`
+                  : '—';
                 return (
                   <tr key={col} className="hover:bg-slate-50/70">
                     <td className="py-3 px-6 font-mono font-medium text-slate-900">{col}</td>
                     <td className="py-3 px-6 text-slate-500">
-                      {analysis?.dtypes?.[col] || profile?.dtype || '—'}
+                      {analysis?.dtypes?.[col] || latestVersion?.dataset_metadata?.dtypes?.[col] || profile?.dtype || '—'}
                     </td>
-                    <td className="py-3 px-6 text-slate-500">{missingCount} ({missingPct}%)</td>
+                    <td className="py-3 px-6 text-slate-500">{typeof missingCount === 'number' ? `${missingCount} (${missingPct})` : '—'}</td>
                     <td className="py-3 px-6">
                       {isTarget ? (
                         <span className="badge bg-red-50 text-red-700 border border-red-200 font-semibold">
@@ -190,7 +196,7 @@ export const DatasetDetailPage: React.FC = () => {
                         </span>
                       ) : (
                         <span className="badge bg-slate-100 text-slate-600 border border-slate-200">
-                          Biomarker Feature
+                          Feature
                         </span>
                       )}
                     </td>
@@ -223,26 +229,24 @@ export const DatasetDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Missing Data & Leakage Assessment
+              Data Quality Summary
             </h3>
             <div className="space-y-3">
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center space-x-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <div className={`p-3 rounded-lg flex items-center space-x-3 ${hasMissingValues === undefined ? 'bg-slate-50 border border-slate-200' : hasMissingValues ? 'bg-amber-50 border border-amber-200' : 'bg-emerald-50 border border-emerald-200'}`}>
+                {hasMissingValues === undefined ? <AlertTriangle className="w-5 h-5 text-slate-500 flex-shrink-0" /> : hasMissingValues ? <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" /> : <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />}
                 <div className="text-xs">
-                  <span className="font-bold text-emerald-900 block">Missing Values</span>
-                  <span className="text-emerald-700">
-                    {Object.values(analysis?.missing_value_counts || {}).some(v => v > 0) 
-                      ? 'Some missing values detected in the dataset.'
-                      : `No missing values in ${totalRows} uploaded rows.`}
+                  <span className="font-bold text-slate-900 block">Missing Values</span>
+                  <span className="text-slate-700">
+                    {hasMissingValues === undefined ? 'File quality analysis is not available yet.' : hasMissingValues ? `Missing values were found in ${Object.values(missingCounts || {}).filter((count) => count > 0).length} columns.` : `No missing values found in ${totalRows} uploaded rows.`}
                   </span>
                 </div>
               </div>
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center space-x-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <div className={`p-3 rounded-lg flex items-center space-x-3 ${analysis ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-200'}`}>
+                {analysis ? <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" /> : <AlertTriangle className="w-5 h-5 text-slate-500 flex-shrink-0" />}
                 <div className="text-xs">
-                  <span className="font-bold text-emerald-900 block">Duplicate Rows</span>
-                  <span className="text-emerald-700">
-                    {analysis?.duplicate_row_count ?? '—'} identical rows detected in the uploaded file.
+                  <span className="font-bold text-slate-900 block">Duplicate Rows</span>
+                  <span className="text-slate-700">
+                    {analysis ? `${analysis.duplicate_row_count} identical rows detected in the uploaded file.` : 'File quality analysis is not available yet.'}
                   </span>
                 </div>
               </div>
@@ -251,12 +255,12 @@ export const DatasetDetailPage: React.FC = () => {
 
           <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Class Distribution & Imbalance
+              Target Distribution
             </h3>
             <div className="space-y-2 text-xs">
               {analysis?.class_distribution ? (
                 Object.entries(analysis.class_distribution).map(([cls, count], idx) => {
-                  const pct = totalRows > 0 ? (count / totalRows) * 100 : 0;
+                  const pct = typeof totalRows === 'number' && totalRows > 0 ? (count / totalRows) * 100 : 0;
                   const colorClass = idx === 0 ? 'bg-red-500' : (idx === 1 ? 'bg-emerald-500' : 'bg-blue-500');
                   return (
                     <div key={cls}>
@@ -277,9 +281,8 @@ export const DatasetDetailPage: React.FC = () => {
               {analysis?.class_distribution && Object.keys(analysis.class_distribution).length > 0 && (
                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start space-x-2 text-[11px] text-amber-800">
                   <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
-                  <span>
-                    <strong>Class Imbalance Analyzed:</strong> AI Preprocessing Agent will recommend Stratified
-                    K-Fold / Stratified Partitioning to preserve disease prevalence across train and test sets.
+                    <span>
+                    <strong>Target class distribution recorded.</strong> Review the preprocessing split strategy before training so the evaluation partition reflects these class counts.
                   </span>
                 </div>
               )}
@@ -303,7 +306,7 @@ export const DatasetDetailPage: React.FC = () => {
                     <StatusBadge status={ver.status} size="sm" />
                   </div>
                   <p className="text-slate-500 text-[11px]">
-                    {ver.row_count} rows &bull; {ver.column_count} columns &bull; Immutable checksum verified
+                    {ver.row_count} rows &bull; {ver.column_count} columns &bull; {ver.dataset_metadata?.filename || 'Uploaded file'}
                   </p>
                 </div>
                 <div className="text-right text-[11px] text-slate-400 font-mono">

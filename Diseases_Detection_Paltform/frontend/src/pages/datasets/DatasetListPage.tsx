@@ -17,8 +17,8 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { EmptyState } from '../../components/common/EmptyState';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 
-// Authentic 309-patient clinical lung cancer benchmark cohort sample
-const SAMPLE_LUNG_CANCER_CSV = `GENDER,AGE,SMOKING,YELLOW_FINGERS,ANXIETY,PEER_PRESSURE,CHRONIC_DISEASE,FATIGUE,ALLERGY,WHEEZING,ALCOHOL_CONSUMING,COUGHING,SHORTNESS_OF_BREATH,SWALLOWING_DIFFICULTY,CHEST_PAIN,LUNG_CANCER
+// Small demo file for trying the upload flow; this is not the experiment benchmark dataset.
+const DEMO_LUNG_CANCER_CSV = `GENDER,AGE,SMOKING,YELLOW_FINGERS,ANXIETY,PEER_PRESSURE,CHRONIC_DISEASE,FATIGUE,ALLERGY,WHEEZING,ALCOHOL_CONSUMING,COUGHING,SHORTNESS_OF_BREATH,SWALLOWING_DIFFICULTY,CHEST_PAIN,LUNG_CANCER
 M,69,1,2,2,1,1,2,1,2,2,2,2,2,2,1
 M,74,2,1,1,1,2,2,2,1,1,1,2,2,2,1
 F,59,1,1,1,2,1,2,1,2,1,2,2,1,2,0
@@ -57,8 +57,8 @@ export const DatasetListPage: React.FC = () => {
     mutationFn: async (fileToUpload: File) => {
       setUploadStatus('Creating dataset container...');
       const created = await datasetsApi.create({
-        name: datasetName || 'Clinical Lung Cancer Cohort',
-        description: datasetDesc || 'Biomarker clinical trial screening dataset',
+        name: datasetName || 'Uploaded dataset',
+        description: datasetDesc || 'CSV dataset uploaded by the user.',
       });
       setUploadStatus('Uploading and parsing CSV...');
       await datasetsApi.uploadVersion(created.id, fileToUpload, 'v1.0');
@@ -86,12 +86,12 @@ export const DatasetListPage: React.FC = () => {
     },
   });
 
-  const handleBenchmarkPreload = () => {
-    const blob = new Blob([SAMPLE_LUNG_CANCER_CSV], { type: 'text/csv' });
+  const handleDemoPreload = () => {
+    const blob = new Blob([DEMO_LUNG_CANCER_CSV], { type: 'text/csv' });
     const file = new File([blob], 'survey_lung_cancer.csv', { type: 'text/csv' });
     setSelectedFile(file);
-    setDatasetName('Lung Cancer Benchmark Cohort');
-    setDatasetDesc('Standardized 309-patient clinical biomarker screening dataset');
+    setDatasetName('Lung Cancer Demo Sample');
+    setDatasetDesc('20-row demo sample for trying the upload workflow; not a clinical benchmark.');
   };
 
   return (
@@ -99,21 +99,21 @@ export const DatasetListPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Biomedical Datasets</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Uploaded Datasets</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage immutable clinical trial tabular cohorts, schemas, and versions
+            Upload CSV files, inspect their actual schemas and quality, and manage dataset versions.
           </p>
         </div>
         <div className="flex items-center space-x-3">
           <button
             onClick={() => {
-              handleBenchmarkPreload();
+              handleDemoPreload();
               setShowUploadModal(true);
             }}
             className="px-3.5 py-2 bg-quantum-50 hover:bg-quantum-100 text-quantum-700 border border-quantum-200 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors"
           >
             <Sparkles className="w-4 h-4 text-quantum-600" />
-            <span>Load Benchmark Cohort</span>
+            <span>Load 20-row demo CSV</span>
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
@@ -132,10 +132,10 @@ export const DatasetListPage: React.FC = () => {
         <EmptyState
           icon={Database}
           title="No Datasets Ingested Yet"
-          description="Upload a biomedical CSV dataset or load the benchmark lung cancer clinical cohort to initiate screening."
-          actionText="Load Benchmark Cohort"
+          description="Upload a CSV dataset to inspect its actual columns, data types, missing values, and distributions. A clearly labeled 20-row demo is also available for trying the upload flow."
+          actionText="Load 20-row demo CSV"
           onAction={() => {
-            handleBenchmarkPreload();
+            handleDemoPreload();
             setShowUploadModal(true);
           }}
         />
@@ -147,31 +147,32 @@ export const DatasetListPage: React.FC = () => {
                 <tr>
                   <th className="py-3.5 px-6">Dataset Name</th>
                   <th className="py-3.5 px-6">Version</th>
-                  <th className="py-3.5 px-6">Patients / Rows</th>
-                  <th className="py-3.5 px-6">Biomarkers / Cols</th>
-                  <th className="py-3.5 px-6">Task Type</th>
+                  <th className="py-3.5 px-6">Rows</th>
+                  <th className="py-3.5 px-6">Columns</th>
+                  <th className="py-3.5 px-6">Uploaded file</th>
                   <th className="py-3.5 px-6 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {datasets.map((dataset) => (
-                  <tr key={dataset.id} className="hover:bg-slate-50/70 transition-colors">
+                {datasets.map((dataset) => {
+                  const latestVersion = [...(dataset.versions || [])].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0];
+                  return <tr key={dataset.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-4 px-6">
                       <div className="font-semibold text-slate-900">{dataset.name}</div>
-                      <div className="text-[11px] text-slate-400 line-clamp-1">{dataset.description}</div>
+                      <div className="text-[11px] text-slate-400 line-clamp-1">{dataset.description || 'No description recorded.'}</div>
                     </td>
                     <td className="py-4 px-6 font-mono text-[11px]">
-                      {dataset.versions?.[0]?.version_tag || 'v1.0'}
+                      {latestVersion?.version_tag || '—'}
                     </td>
                     <td className="py-4 px-6 font-semibold">
-                      {dataset.versions?.[0]?.row_count || 309}
+                      {latestVersion?.row_count ?? '—'}
                     </td>
                     <td className="py-4 px-6">
-                      {dataset.versions?.[0]?.column_count || 16} features
+                      {latestVersion?.column_count ?? '—'}
                     </td>
                     <td className="py-4 px-6">
                       <span className="badge bg-slate-100 text-slate-700 border border-slate-200">
-                        Binary Classification
+                        {latestVersion?.dataset_metadata?.filename || '—'}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-right">
@@ -203,8 +204,8 @@ export const DatasetListPage: React.FC = () => {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
+                  </tr>;
+                })}
               </tbody>
             </table>
           </div>
@@ -218,7 +219,7 @@ export const DatasetListPage: React.FC = () => {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center space-x-2">
                 <FileSpreadsheet className="w-5 h-5 text-brand-800" />
-                <h3 className="font-bold text-base text-slate-900">Ingest Clinical Dataset</h3>
+                <h3 className="font-bold text-base text-slate-900">Upload CSV dataset</h3>
               </div>
               <button
                 onClick={() => setShowUploadModal(false)}

@@ -1,5 +1,6 @@
 """Model training orchestration endpoints."""
 
+from typing import List
 from fastapi import APIRouter, Depends, status
 from app.core.dependencies import get_current_user, get_training_service
 from app.database.models.user import User
@@ -8,6 +9,16 @@ from app.schemas.training import TrainingRunCreate, TrainingRunResponse
 from app.services.training_service import TrainingService
 
 router = APIRouter(prefix="/training", tags=["Training"])
+
+
+@router.get("", response_model=List[TrainingRunResponse])
+async def list_training_runs(
+    current_user: User = Depends(get_current_user),
+    service: TrainingService = Depends(get_training_service),
+):
+    """List the authenticated user's training runs, newest first."""
+    runs = await service.training_repo.list_by_user(user_id=str(current_user.id))
+    return [TrainingRunResponse.model_validate(run) for run in runs]
 
 
 @router.post("", response_model=StandardResponse[TrainingRunResponse], status_code=status.HTTP_201_CREATED)
@@ -26,6 +37,7 @@ async def start_training_run(
         hyperparameters=payload.hyperparameters,
         is_noisy_quantum=payload.is_noisy_quantum,
         noise_params=payload.noise_params,
+        custom_name=payload.custom_name,
     )
     return StandardResponse(
         message="Model training completed successfully.",

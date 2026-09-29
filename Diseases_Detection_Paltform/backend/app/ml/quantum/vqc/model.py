@@ -127,3 +127,25 @@ class VariationalQuantumClassifier(IModel):
             "weights": self.weights.tolist() if hasattr(self.weights, "tolist") else None,
             "bias": float(self.bias),
         }
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove the unpicklable QNode
+        if "circuit" in state:
+            del state["circuit"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # Recreate the quantum circuit
+        if self.is_noisy:
+            self.circuit = create_noisy_vqc_circuit(
+                n_qubits=self.n_qubits,
+                n_layers=self.n_layers,
+                **self.noise_params,
+            )
+        else:
+            self.circuit = create_vqc_circuit(
+                n_qubits=self.n_qubits,
+                n_layers=self.n_layers,
+            )

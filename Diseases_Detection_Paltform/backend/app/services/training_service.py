@@ -19,6 +19,7 @@ from app.database.models.preprocessing import PreprocessingRun
 from app.database.models.training import TrainingRun
 from app.ml.classical.svm.linear import SVMLinearModel
 from app.ml.classical.svm.rbf import SVMRBFModel
+from app.ml.loader import pretrained_model_loader
 from app.ml.quantum.vqc.model import VariationalQuantumClassifier
 from app.repositories.dataset_repository import DatasetRepository
 from app.repositories.model_repository import ModelRepository
@@ -46,6 +47,7 @@ class TrainingService:
         hyperparameters: Optional[Dict[str, Any]] = None,
         is_noisy_quantum: bool = False,
         noise_params: Optional[Dict[str, float]] = None,
+        custom_name: Optional[str] = None,
     ) -> TrainingRun:
         started_at = time.time()
         hyperparameters = hyperparameters or {}
@@ -102,6 +104,25 @@ class TrainingService:
                 "Encode those categorical columns or remove them from feature selection."
             )
 
+        X_train, X_test = processed["X_train"], processed["X_test"]
+        template_config = template.configuration or {}
+        is_pretrained = bool(template_config.get("pretrained"))
+        if is_pretrained:
+            checkpoint_features = template_config.get("selected_features") or []
+            if target.strip().lower() != "lung_cancer" or features != checkpoint_features:
+                raise ValidationError("This pretrained checkpoint requires target LUNG_CANCER and its exact documented feature order.")
+            non_numeric = [
+                column for column in features
+                if not pd.api.types.is_numeric_dtype(df[column]) or pd.api.types.is_bool_dtype(df[column])
+            ]
+            if non_numeric or set(processed["source_feature_names"]) != set(features) or len(processed["source_feature_names"]) != len(features):
+                raise ValidationError("This pretrained checkpoint requires its documented numeric feature set in the exact selected order.")
+            scaler_step = next((step for step in steps if step.tool_name.lower() == "min_max_scaler"), None)
+            if not scaler_step or set(scaler_step.parameters.get("columns", [])) != set(features):
+                raise ValidationError("This pretrained checkpoint requires min-max scaling on every documented feature.")
+            if X_train.shape[1] != int(template_config.get("feature_count", 0)):
+                raise ValidationError("The uploaded data's transformed feature count does not match this pretrained checkpoint.")
+
         classes = sorted({str(value) for value in df[target].dropna().unique()})
         if len(classes) != 2:
             raise ValidationError("The built-in SVM and VQC models require a binary target with exactly two classes.")
@@ -110,9 +131,24 @@ class TrainingService:
         target_map = {name: int(name == positive_class) for name in classes}
         y_train = np.asarray([target_map[str(value)] for value in processed["y_train"]], dtype=int)
         y_test = np.asarray([target_map[str(value)] for value in processed["y_test"]], dtype=int)
-        X_train, X_test = processed["X_train"], processed["X_test"]
+        feature_order_indices = None
+        if is_pretrained:
+            feature_order_indices = [processed["source_feature_names"].index(feature) for feature in features]
+            X_train = X_train[:, feature_order_indices]
+            X_test = X_test[:, feature_order_indices]
 
-        if template.model_type == "svm_linear":
+        if is_pretrained and template_config.get("model_file"):
+            estimator = pretrained_model_loader.load_classical_svm(template_config["model_file"])
+        elif is_pretrained and template_config.get("weights_file") and template_config.get("bias_file"):
+            estimator = pretrained_model_loader.load_vqc_model(
+                weights_filename=template_config["weights_file"],
+                bias_filename=template_config["bias_file"],
+                n_qubits=int(template_config.get("n_qubits", template_config.get("feature_count", 0))),
+                n_layers=int(template_config.get("n_layers", 2)),
+                is_noisy=bool(template_config.get("noise_channels")),
+                noise_params=template_config.get("noise_channels"),
+            )
+        elif template.model_type == "svm_linear":
             c_value = float(hyperparameters.get("C", 1.0))
             if c_value <= 0:
                 raise ValidationError("SVM regularization C must be greater than zero.")
@@ -136,9 +172,10 @@ class TrainingService:
         else:
             raise ValidationError(f"Unsupported model type '{template.model_type}'.")
 
-        estimator.fit(X_train, y_train)
+        if not is_pretrained:
+            estimator.fit(X_train, y_train)
         duration = time.time() - started_at
-        probabilities = estimator.predict_proba(X_test)
+        probabilities = _positive_class_probabilities(estimator, X_test)
         predictions = (probabilities >= 0.5).astype(int)
         accuracy = float(accuracy_score(y_test, predictions))
         sensitivity = float(recall_score(y_test, predictions, zero_division=0))
@@ -147,19 +184,44 @@ class TrainingService:
         precision = float(precision_score(y_test, predictions, zero_division=0))
         f1 = float(f1_score(y_test, predictions, zero_division=0))
         auc = float(roc_auc_score(y_test, probabilities)) if len(np.unique(y_test)) == 2 else None
+
+        # Generalization Metrics (Train)
+        train_probs = _positive_class_probabilities(estimator, X_train)
+        train_preds = (train_probs >= 0.5).astype(int)
+        train_accuracy = float(accuracy_score(y_train, train_preds))
+        train_sensitivity = float(recall_score(y_train, train_preds, zero_division=0))
+        tr_tn, tr_fp, tr_fn, tr_tp = [int(value) for value in confusion_matrix(y_train, train_preds, labels=[0, 1]).ravel()]
+        train_specificity = float(tr_tn / (tr_tn + tr_fp)) if tr_tn + tr_fp else 0.0
+
         metrics = {
             "accuracy": accuracy, "balanced_accuracy": (sensitivity + specificity) / 2,
             "sensitivity": sensitivity, "specificity": specificity, "precision": precision,
             "f1_score": f1, "roc_auc": auc, "training_duration_seconds": round(duration, 3),
             "evaluation_partition": "held-out test", "positive_class": positive_class,
             "target_column": target, "selected_features": features,
+            "test_samples": int(len(y_test)),
             "confusion_matrix": {"tp": tp, "tn": tn, "fp": fp, "fn": fn},
+            "y_true_test": y_test.tolist(),
+            "y_prob_test": probabilities.tolist(),
+            "generalization": {
+                "train": {
+                    "accuracy": train_accuracy,
+                    "sensitivity": train_sensitivity,
+                    "specificity": train_specificity,
+                },
+                "test": {
+                    "accuracy": accuracy,
+                    "sensitivity": sensitivity,
+                    "specificity": specificity,
+                }
+            }
         }
 
         dataset = await self.dataset_repo.get_by_id(version.dataset_id)
         dataset_name = dataset.name if dataset else "Uploaded dataset"
+        trained_model_name = custom_name if custom_name else f"{template.name} · {dataset_name} {version.version_tag}"
         trained_model = await self.model_repo.create(Model(
-            user_id=user_id, name=f"{template.name} · {dataset_name} {version.version_tag}",
+            user_id=user_id, name=trained_model_name,
             description=f"Trained on uploaded dataset version {version.version_tag}.",
             model_type=template.model_type, is_quantum=template.model_type == "vqc",
             is_default=False, status="trained",
@@ -168,6 +230,15 @@ class TrainingService:
                 "preprocessing_run_id": str(preprocessing_run.id) if preprocessing_run else None,
                 "feature_selection_run_id": str(feature_run.id), "target_column": target,
                 "selected_features": features, "hyperparameters": hyperparameters,
+                "pretrained_used": is_pretrained,
+                "pretrained_source_model_id": template_config.get("model_id") if is_pretrained else None,
+                "pretrained_source_metrics": template_config.get("metrics") if is_pretrained else None,
+                "metrics": {
+                    key: metrics.get(key) for key in (
+                        "accuracy", "balanced_accuracy", "sensitivity", "specificity", "precision",
+                        "f1_score", "roc_auc", "training_duration_seconds", "test_samples", "confusion_matrix",
+                    )
+                },
             },
         ))
         trained_model.evaluation_id = f"eval_{trained_model.id}"
@@ -179,10 +250,36 @@ class TrainingService:
             "preprocessor": processed["fitted_pipeline"]["preprocessor"],
             "target_column": target, "target_mapping": target_map, "positive_class": positive_class,
             "encoded_feature_names": processed["feature_names"],
+            "preprocessor_feature_order_indices": feature_order_indices,
             "preprocessing_run_id": str(preprocessing_run.id) if preprocessing_run else None,
             "feature_selection_run_id": str(feature_run.id),
         }, buffer)
         self.storage.save(f"models/{trained_model.id}/model.joblib", buffer.getvalue())
+
+        qml_config = None
+        if template.model_type == "vqc":
+            import pennylane as qml
+            dummy_x = np.zeros(X_train.shape[1])
+            dummy_weights = estimator.weights if hasattr(estimator, 'weights') else np.zeros((layers, X_train.shape[1]))
+            try:
+                specs = qml.specs(estimator.circuit)(dummy_weights, dummy_x)
+                qml_config = {
+                    "n_qubits": X_train.shape[1],
+                    "n_layers": layers,
+                    "gates": specs.get("num_operations", 0),
+                    "depth": specs.get("depth", 0),
+                    "shots": "Analytic (None)" if not estimator.is_noisy else "1024 (Default)",
+                    "encoding": "Angle Encoding",
+                    "is_noisy": is_noisy_quantum,
+                    "backend_type": "default.mixed" if is_noisy_quantum else "default.qubit"
+                }
+            except Exception as e:
+                qml_config = {
+                    "n_qubits": X_train.shape[1],
+                    "n_layers": layers,
+                    "is_noisy": is_noisy_quantum,
+                    "backend_type": "default.mixed" if is_noisy_quantum else "default.qubit"
+                }
 
         run = await self.training_repo.create(TrainingRun(
             user_id=user_id, model_id=str(trained_model.id), dataset_version_id=str(version.id),
@@ -191,6 +288,8 @@ class TrainingService:
             learning_type="QML" if template.model_type == "vqc" else "CML",
             model_type=template.model_type,
             status="completed", metrics=metrics,
+            feature_config={"selected_features": features, "target_column": target},
+            qml_config=qml_config
         ))
         await Evaluation(
             user_id=user_id, model_id=str(trained_model.id), dataset_version_id=str(version.id),
@@ -229,3 +328,14 @@ class TrainingService:
                 PreprocessingPlanStep(step_id=len(steps) + 2, tool_name="one_hot_encoder", rationale="Encode observed categorical values.", parameters={"columns": categorical}),
             ])
         return steps
+
+
+def _positive_class_probabilities(estimator: Any, values: np.ndarray) -> np.ndarray:
+    """Return the probability for encoded positive class 1 from wrapped or raw sklearn models."""
+    probabilities = np.asarray(estimator.predict_proba(values), dtype=float)
+    if probabilities.ndim == 1:
+        return probabilities
+    classes = np.asarray(getattr(estimator, "classes_", np.arange(probabilities.shape[1])))
+    positive_indices = np.flatnonzero(classes == 1)
+    positive_index = int(positive_indices[0]) if positive_indices.size else probabilities.shape[1] - 1
+    return probabilities[:, positive_index]

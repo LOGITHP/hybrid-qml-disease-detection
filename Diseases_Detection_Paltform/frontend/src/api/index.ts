@@ -158,6 +158,11 @@ export const modelsApi = {
 };
 
 export const trainingApi = {
+  listRuns: async (): Promise<TrainingRun[]> => {
+    const res = await apiClient.get<TrainingRun[]>('/training');
+    return res.data;
+  },
+
   startRun: async (payload: {
     model_id: string;
     dataset_version_id: string;
@@ -178,32 +183,12 @@ export const trainingApi = {
 };
 
 export const predictionsApi = {
-  getDatasets: async (): Promise<{ dataset_id: string; name: string }[]> => {
-    const res = await apiClient.get<{ dataset_id: string; name: string }[]>('/predictions/datasets');
-    return res.data;
-  },
-  
-  getModels: async (datasetId: string): Promise<any[]> => {
-    const res = await apiClient.get<any[]>('/predictions/models', { params: { dataset_id: datasetId } });
-    return res.data;
-  },
-
-  recommendModel: async (datasetId: string): Promise<any> => {
-    const res = await apiClient.post<any>('/predictions/recommend-model', { dataset_id: datasetId });
-    return res.data;
-  },
-
-  getSchema: async (trainingRunId: string): Promise<any> => {
-    const res = await apiClient.get<any>('/predictions/schema', { params: { training_run_id: trainingRunId } });
-    return res.data;
-  },
-
   predict: async (payload: {
-    training_run_id: string;
-    patient_data: Record<string, any>;
-    threshold?: number;
-  }): Promise<any> => {
-    const res = await apiClient.post<any>('/predictions/predict', payload);
+    model_id: string;
+    features: Record<string, any> | Record<string, any>[];
+    decision_threshold?: number;
+  }): Promise<PredictionResponse> => {
+    const res = await apiClient.post<PredictionResponse>('/predictions', payload);
     return res.data;
   },
 };
@@ -279,4 +264,15 @@ export const healthApi = {
     const res = await apiClient.get<{ version: string; environment: string }>('/version');
     return res.data;
   },
+};
+
+export const evaluationApi = {
+  getContext: async (trainingRunId: string): Promise<any> => {
+    const res = await apiClient.get(`/evaluation/${trainingRunId}`);
+    return res.data;
+  },
+  compare: async (trainingRunIds: string[]): Promise<any> => {
+    const res = await apiClient.post('/evaluation/compare', { training_run_ids: trainingRunIds });
+    return res.data;
+  }
 };

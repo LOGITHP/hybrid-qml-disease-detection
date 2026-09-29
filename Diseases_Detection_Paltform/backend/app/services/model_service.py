@@ -2,6 +2,7 @@
 from app.repositories.model_repository import ModelRepository
 from app.database.models.model import Model
 from app.database.models.evaluation import Evaluation
+from app.ml.loader import pretrained_model_loader
 from app.core.exceptions import ResourceNotFoundError, ValidationError
 from app.repositories.dataset_repository import DatasetRepository
 from app.schemas.evaluation import (
@@ -44,6 +45,23 @@ class ModelService:
             Model(user_id="system", name="RBF SVM Tabular Baseline", model_type="svm_rbf", description="Built-in non-linear tabular baseline. The estimator is trained on the selected uploaded dataset.", is_default=True, status="active"),
             Model(user_id="system", name="PennyLane VQC", model_type="vqc", description="Built-in variational quantum classifier trained on the selected uploaded dataset.", is_default=True, status="active"),
         ]
+        for metadata in pretrained_model_loader.list_available_models():
+            features = metadata.get("selected_features") or []
+            if not features or not (metadata.get("model_file") or metadata.get("weights_file")):
+                continue
+            defaults.append(Model(
+                user_id="system",
+                name=metadata["model_name"],
+                model_type=metadata["model_type"],
+                description=(
+                    "Pretrained lung-cancer checkpoint. Compatible only with target LUNG_CANCER and this exact feature order: "
+                    + ", ".join(features)
+                    + "."
+                ),
+                is_default=True,
+                status="active",
+                configuration={"pretrained": True, **metadata},
+            ))
         results = []
         for d in defaults:
             # Upsert or ignore
@@ -56,6 +74,7 @@ class ModelService:
                 existing.description = d.description
                 existing.is_default = True
                 existing.status = "active"
+                existing.configuration = d.configuration
                 await self.model_repo.update(existing)
                 results.append(existing)
         return results
@@ -68,6 +87,7 @@ class ModelService:
             raise ValidationError("Select at least two trained models to compare.")
 
         entries = []
+        contexts = []
         for model_id in selected_ids:
             model = await self.get_model(model_id, user_id, is_admin)
             if model.status != "trained":
@@ -82,14 +102,16 @@ class ModelService:
                 confusion = {"tn": tn, "fp": fp, "fn": fn, "tp": tp}
             config = model.configuration or {}
             dataset_version_id = config.get("dataset_version_id")
+            selected_features = config.get("selected_features") or metrics.get("selected_features") or []
+            contexts.append((dataset_version_id, config.get("target_column") or metrics.get("target_column"), tuple(selected_features)))
             version = await self.dataset_repo.get_version(dataset_version_id) if dataset_version_id else None
             entries.append(ModelComparisonEntry(
                 model_id=str(model.id),
                 model_name=model.name,
                 model_type=model.model_type,
                 version_tag=version.version_tag if version else "trained",
-                feature_count=len(config.get("selected_features") or metrics.get("selected_features") or []),
-                selected_features=config.get("selected_features") or metrics.get("selected_features") or [],
+                feature_count=len(selected_features),
+                selected_features=selected_features,
                 accuracy=float(metrics.get("accuracy", evaluation.accuracy)),
                 sensitivity=float(metrics.get("sensitivity", evaluation.recall)),
                 specificity=float(metrics.get("specificity", 0.0)),
@@ -106,6 +128,9 @@ class ModelService:
                 training_duration_sec=metrics.get("training_duration_seconds"),
                 quantum_details={"model_type": model.model_type} if model.model_type == "vqc" else None,
             ))
+
+        if len(set(contexts)) != 1:
+            raise ValidationError("Compare models trained on the same dataset version, target, and selected feature columns.")
 
         definitions = [
             ("accuracy", "Accuracy", True),
@@ -135,7 +160,7 @@ class ModelService:
             "interpretation": "Descriptive comparison of the selected runs; it is not a statistical significance test.",
             "classical_mean_accuracy": sum(classical) / len(classical) if classical else None,
             "quantum_mean_accuracy": sum(quantum) / len(quantum) if quantum else None,
-            "dataset_versions": sorted({str((model.configuration or {}).get("dataset_version_id", "")) for model in [await self.get_model(model_id, user_id, is_admin) for model_id in selected_ids]}),
+            "dataset_versions": [str(contexts[0][0])],
         }
         markdown = ["| Model | Type | Accuracy | Sensitivity | Specificity | F1 | ROC AUC |", "|---|---|---:|---:|---:|---:|---:|"]
         for entry in entries:

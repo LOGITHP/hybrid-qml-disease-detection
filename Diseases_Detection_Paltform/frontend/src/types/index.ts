@@ -169,6 +169,7 @@ export interface TrainingRun {
   id: string;
   experiment_id?: string | null;
   model_id: string;
+  model_type?: string;
   user_id: string;
   dataset_version_id: string;
   feature_selection_run_id?: string;
@@ -205,18 +206,27 @@ export interface QuantumJob {
 export interface RiskStratification {
   risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
   score: number;
+  threshold_low_medium?: number;
+  threshold_medium_high?: number;
+  medical_disclaimer?: string;
 }
 
 export interface SinglePredictionResult {
-  training_run_id: string;
-  dataset_id: string;
-  model_type: string;
-  score: number;
-  threshold: number;
-  prediction: number;
-  predicted_label: 'POSITIVE' | 'NEGATIVE';
-  risk_category: 'LOW' | 'MEDIUM' | 'HIGH';
-  explanation?: Record<string, any> | null;
+  predicted_class: number;
+  predicted_label: string;
+  probability?: number | null;
+  risk_stratification?: RiskStratification | null;
+  input_features_used: string[];
+  sample_id?: string;
+}
+
+export interface PredictionResponse {
+  model_id: string;
+  preprocessing_run_id?: string | null;
+  feature_selection_run_id?: string | null;
+  decision_threshold_applied: number;
+  results: SinglePredictionResult[];
+  timestamp: string;
 }
 
 export interface MetricComparisonRow {

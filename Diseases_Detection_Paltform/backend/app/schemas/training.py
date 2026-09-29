@@ -27,6 +27,7 @@ class TrainingRunCreate(BaseModel):
     hyperparameters: Dict[str, Any] = Field(default_factory=dict)
     is_noisy_quantum: bool = False
     noise_params: Optional[Dict[str, float]] = None
+    custom_name: Optional[str] = None
 
 
 class TrainingRunResponse(BaseModel):
@@ -35,6 +36,8 @@ class TrainingRunResponse(BaseModel):
     experiment_id: Optional[str] = None
     user_id: str
     model_id: str
+    model_type: Optional[str] = None
+    learning_type: Optional[str] = None
     dataset_version_id: str
     feature_selection_run_id: Optional[str] = None
     preprocessing_run_id: Optional[str] = None

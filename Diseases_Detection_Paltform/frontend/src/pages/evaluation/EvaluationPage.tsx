@@ -1,27 +1,152 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
-  Sliders,
   ShieldCheck,
   Layers,
   ArrowRight,
-  TrendingUp,
   Activity,
   Info,
+  Box,
+  Lightbulb,
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  AreaChart,
+  Area
+} from 'recharts';
 import { MetricCard } from '../../components/common/MetricCard';
-import { MedicalNotice } from '../../components/common/MedicalNotice';
+import { evaluationApi, trainingApi } from '../../api';
 
 export const EvaluationPage: React.FC = () => {
+  const { runId } = useParams<{ runId?: string }>();
+  const [selectedRunId, setSelectedRunId] = useState<string>(runId || '');
   const [threshold, setThreshold] = useState<number>(0.5);
 
-  // Dynamic sensitivity/specificity calculation based on threshold curve
-  // As threshold increases: Sensitivity decreases, Specificity increases
-  const sensitivity = Math.max(0.65, Math.min(0.99, 1.0 - (threshold - 0.1) * 0.42));
-  const specificity = Math.max(0.60, Math.min(0.98, 0.65 + (threshold - 0.1) * 0.40));
-  const precision = Math.max(0.70, Math.min(0.98, 0.75 + (threshold - 0.1) * 0.25));
-  const f1 = (2 * precision * sensitivity) / (precision + sensitivity);
+  const { data: runs, isLoading: runsLoading } = useQuery({
+    queryKey: ['trainingRuns-eval'],
+    queryFn: trainingApi.listRuns,
+    enabled: !runId,
+  });
+
+  const { data: evalContext, isLoading, isError } = useQuery({
+    queryKey: ['evaluation-context', selectedRunId],
+    queryFn: () => evaluationApi.getContext(selectedRunId),
+    enabled: !!selectedRunId,
+  });
+
+  useEffect(() => {
+    if (!selectedRunId && runs?.length) setSelectedRunId(runs[0].id);
+  }, [runs, selectedRunId]);
+
+  const dynamicMetrics = useMemo(() => {
+    if (!evalContext || !evalContext.y_true || !evalContext.y_prob) {
+      return null;
+    }
+
+    const y_true = evalContext.y_true as number[];
+    const y_prob = evalContext.y_prob as number[];
+
+    let tp = 0, tn = 0, fp = 0, fn = 0;
+
+    for (let i = 0; i < y_true.length; i++) {
+      const actual = y_true[i];
+      const prob = y_prob[i];
+      const predicted = prob >= threshold ? 1 : 0;
+
+      if (actual === 1 && predicted === 1) tp++;
+      else if (actual === 0 && predicted === 0) tn++;
+      else if (actual === 0 && predicted === 1) fp++;
+      else if (actual === 1 && predicted === 0) fn++;
+    }
+
+    const total = tp + tn + fp + fn;
+    const accuracy = total > 0 ? (tp + tn) / total : 0;
+    const sensitivity = (tp + fn) > 0 ? tp / (tp + fn) : 0;
+    const specificity = (tn + fp) > 0 ? tn / (tn + fp) : 0;
+    const precision = (tp + fp) > 0 ? tp / (tp + fp) : 0;
+    const f1 = (precision + sensitivity) > 0 ? (2 * precision * sensitivity) / (precision + sensitivity) : 0;
+    const balanced_accuracy = (sensitivity + specificity) / 2;
+
+    const rocData = [];
+    const prData = [];
+
+    const thresholdData = [];
+    for (let t = 0; t <= 100; t += 2) {
+      const thresh = t / 100;
+      let c_tp = 0, c_tn = 0, c_fp = 0, c_fn = 0;
+      for (let i = 0; i < y_true.length; i++) {
+        const actual = y_true[i];
+        const predicted = y_prob[i] >= thresh ? 1 : 0;
+        if (actual === 1 && predicted === 1) c_tp++;
+        else if (actual === 0 && predicted === 0) c_tn++;
+        else if (actual === 0 && predicted === 1) c_fp++;
+        else if (actual === 1 && predicted === 0) c_fn++;
+      }
+      const c_sens = (c_tp + c_fn) > 0 ? c_tp / (c_tp + c_fn) : 0;
+      const c_spec = (c_tn + c_fp) > 0 ? c_tn / (c_tn + c_fp) : 0;
+      const c_prec = (c_tp + c_fp) > 0 ? c_tp / (c_tp + c_fp) : 1;
+
+      thresholdData.push({
+        threshold: thresh,
+        sensitivity: c_sens,
+        specificity: c_spec,
+        precision: c_prec
+      });
+
+      rocData.push({
+        fpr: 1 - c_spec,
+        tpr: c_sens
+      });
+
+      prData.push({
+        recall: c_sens,
+        precision: c_prec
+      });
+    }
+
+    rocData.sort((a, b) => a.fpr - b.fpr);
+    prData.sort((a, b) => a.recall - b.recall);
+
+    return {
+      tp, tn, fp, fn,
+      total,
+      accuracy,
+      sensitivity,
+      specificity,
+      precision,
+      f1,
+      balanced_accuracy,
+      roc_auc: evalContext.metrics.roc_auc || 0,
+      thresholdData,
+      rocData,
+      prData
+    };
+  }, [evalContext, threshold]);
+
+  if (!selectedRunId) {
+    return (
+      <div className="p-8 text-center text-slate-500">
+        <Activity className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+        <h2 className="text-lg font-bold text-slate-700">{runsLoading ? 'Loading training runs…' : 'No Evaluation Runs Yet'}</h2>
+        {!runsLoading && <><p className="mb-4 mt-2 text-sm">Train a model on an uploaded dataset to see its held-out evaluation.</p><Link to="/training" className="btn-primary inline-flex items-center space-x-2"><span>Open training setup</span><ArrowRight className="w-4 h-4" /></Link></>}
+      </div>
+    );
+  }
+
+  if (isLoading) return <div className="p-8 text-center text-sm font-semibold text-slate-500">Loading comprehensive evaluation context...</div>;
+  if (isError || !evalContext) return <div className="p-8 text-center text-red-600 font-bold">Failed to load evaluation data for this training run.</div>;
+
+  const m = dynamicMetrics || evalContext.metrics;
+  const gen = evalContext.metrics.generalization || {};
 
   return (
     <div className="space-y-6">
@@ -29,148 +154,215 @@ export const EvaluationPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div className="flex items-center space-x-2 text-xs font-semibold text-brand-700 uppercase tracking-wider mb-1">
-            <BarChart3 className="w-4 h-4 text-quantum-600" />
-            <span>Clinical Model Validation</span>
+            <BarChart3 className="w-4 h-4 text-brand-600" />
+            <span>MODEL EVALUATION & DIAGNOSTICS</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Model Evaluation & Diagnostic Thresholds
-          </h1>
-          <p className="text-xs text-slate-500">
-            Examine balanced accuracy, confusion matrices, and tune decision thresholds for oncology screening
-          </p>
+        </div>
+        <select value={selectedRunId} onChange={(event) => setSelectedRunId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-mono text-xs max-w-xs">
+          {(runs || []).map((run) => <option key={run.id} value={run.id}>{run.id.slice(0, 8)} · {run.model_type}</option>)}
+        </select>
+      </div>
+
+      {/* Context Bar */}
+      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-[11px] font-mono">
+        <div><span className="block text-slate-400 uppercase font-bold mb-1">Dataset</span><span className="text-slate-800 line-clamp-1">{evalContext.dataset_name}</span></div>
+        <div><span className="block text-slate-400 uppercase font-bold mb-1">Training Run</span><span className="text-slate-800">{evalContext.training_run_id.substring(0,8)}</span></div>
+        <div><span className="block text-slate-400 uppercase font-bold mb-1">Preprocessing</span><span className="text-slate-800">{evalContext.preprocessing_run_id?.substring(0,8) || 'N/A'}</span></div>
+        <div><span className="block text-slate-400 uppercase font-bold mb-1">Model</span><span className="text-slate-800 uppercase">{evalContext.model_type}</span></div>
+        <div><span className="block text-slate-400 uppercase font-bold mb-1">CML/QML</span><span className="text-slate-800">{evalContext.learning_type}</span></div>
+        <div><span className="block text-slate-400 uppercase font-bold mb-1">Test Set</span><span className="text-slate-800">{evalContext.sample_count} samples</span></div>
+        <div><span className="block text-slate-400 uppercase font-bold mb-1">Features</span><span className="text-slate-800">{evalContext.selected_feature_count} features</span></div>
+        <div><span className="block text-slate-400 uppercase font-bold mb-1">Backend</span><span className="text-slate-800">{evalContext.quantum?.backend_type || 'Sklearn'}</span></div>
+      </div>
+
+      {/* Core Metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <MetricCard title="ACCURACY" value={`${(m.accuracy * 100).toFixed(1)}%`} />
+        <MetricCard title="BALANCED ACC" value={`${((m.balanced_accuracy || 0) * 100).toFixed(1)}%`} />
+        <MetricCard title="SENSITIVITY" value={`${(m.sensitivity * 100).toFixed(1)}%`} badgeColor="success" />
+        <MetricCard title="SPECIFICITY" value={`${(m.specificity * 100).toFixed(1)}%`} />
+        <MetricCard title="PRECISION" value={`${(m.precision * 100).toFixed(1)}%`} />
+        <MetricCard title="F1-SCORE" value={`${(m.f1 * 100).toFixed(1)}%`} />
+        <MetricCard title="ROC-AUC" value={(m.roc_auc || 0).toFixed(3)} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Confusion Matrix */}
+        <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">CONFUSION MATRIX</h3>
+          <div className="grid grid-cols-2 gap-3 text-center text-xs">
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <span className="text-[10px] text-emerald-800 font-semibold uppercase block mb-1">True Positives (TP)</span>
+              <span className="text-3xl font-extrabold text-emerald-900 font-mono">{dynamicMetrics?.tp ?? 0}</span>
+            </div>
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+              <span className="text-[10px] text-red-800 font-semibold uppercase block mb-1">False Positives (FP)</span>
+              <span className="text-3xl font-extrabold text-red-900 font-mono">{dynamicMetrics?.fp ?? 0}</span>
+            </div>
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <span className="text-[10px] text-amber-800 font-semibold uppercase block mb-1">False Negatives (FN)</span>
+              <span className="text-3xl font-extrabold text-amber-900 font-mono">{dynamicMetrics?.fn ?? 0}</span>
+            </div>
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <span className="text-[10px] text-emerald-800 font-semibold uppercase block mb-1">True Negatives (TN)</span>
+              <span className="text-3xl font-extrabold text-emerald-900 font-mono">{dynamicMetrics?.tn ?? 0}</span>
+            </div>
+          </div>
         </div>
 
-        <Link
-          to="/evaluation/comparison"
-          className="btn-primary text-xs flex items-center space-x-2 self-start sm:self-auto"
-        >
-          <Layers className="w-3.5 h-3.5" />
+        {/* Threshold Tuning */}
+        <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">THRESHOLD TUNING</h3>
+          <div className="space-y-6 pt-4">
+            <div>
+               <div className="flex justify-between mb-2">
+                 <span className="text-xs font-bold text-slate-600">Decision Threshold</span>
+                 <span className="text-xs font-mono font-bold text-brand-700">{threshold.toFixed(2)}</span>
+               </div>
+               <input
+                 type="range"
+                 min="0.00"
+                 max="1.00"
+                 step="0.01"
+                 value={threshold}
+                 onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                 className="w-full accent-brand-600 cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none"
+               />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col justify-center items-center">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Sensitivity</span>
+                <span className="text-2xl font-bold font-mono text-slate-800">{(m.sensitivity * 100).toFixed(1)}%</span>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col justify-center items-center">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Specificity</span>
+                <span className="text-2xl font-bold font-mono text-slate-800">{(m.specificity * 100).toFixed(1)}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ROC & PR Curves */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">ROC CURVE</h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dynamicMetrics?.rocData} margin={{ top: 5, right: 20, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="fpr" type="number" domain={[0, 1]} tick={{fontSize: 10}} label={{ value: 'False Positive Rate', position: 'insideBottom', offset: -15, fontSize: 10 }} />
+                  <YAxis type="number" domain={[0, 1]} tick={{fontSize: 10}} label={{ value: 'True Positive Rate', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }} />
+                  <Tooltip labelFormatter={(v) => `FPR: ${Number(v).toFixed(2)}`} formatter={(v: number) => Number(v).toFixed(2)} />
+                  <Area type="stepAfter" dataKey="tpr" name="Sensitivity" stroke="#3b82f6" fill="#eff6ff" />
+                  <Line type="monotone" dataKey="fpr" stroke="#94a3b8" strokeDasharray="5 5" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+         </div>
+
+         <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">PR CURVE</h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dynamicMetrics?.prData} margin={{ top: 5, right: 20, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="recall" type="number" domain={[0, 1]} tick={{fontSize: 10}} label={{ value: 'Recall (Sensitivity)', position: 'insideBottom', offset: -15, fontSize: 10 }} />
+                  <YAxis type="number" domain={[0, 1]} tick={{fontSize: 10}} label={{ value: 'Precision', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }} />
+                  <Tooltip labelFormatter={(v) => `Recall: ${Number(v).toFixed(2)}`} formatter={(v: number) => Number(v).toFixed(2)} />
+                  <Area type="stepAfter" dataKey="precision" name="Precision" stroke="#10b981" fill="#ecfdf5" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+         </div>
+      </div>
+
+      {/* CML vs QML Comparison */}
+      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+          <h3 className="text-sm font-bold tracking-wider text-slate-800">CML vs QML COMPARISON</h3>
+          <p className="text-xs text-slate-500 mt-1">Compare this {evalContext.model_type} model against other SVM or VQC runs on the same dataset.</p>
+        </div>
+        <Link to={`/evaluation/comparison?run=${selectedRunId}`} className="btn-primary text-xs flex items-center space-x-2 whitespace-nowrap">
+          <Layers className="w-4 h-4" />
           <span>Launch Multi-Model Comparison</span>
+        </Link>
+      </div>
+
+      {/* Generalization */}
+      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">GENERALIZATION</h3>
+        <div className="grid grid-cols-3 gap-6">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+            <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Train</span>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs"><span className="text-slate-600">Accuracy</span><span className="font-mono font-bold">{gen.train?.accuracy ? (gen.train.accuracy * 100).toFixed(1) + '%' : 'N/A'}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-slate-600">Sensitivity</span><span className="font-mono font-bold">{gen.train?.sensitivity ? (gen.train.sensitivity * 100).toFixed(1) + '%' : 'N/A'}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-slate-600">Specificity</span><span className="font-mono font-bold">{gen.train?.specificity ? (gen.train.specificity * 100).toFixed(1) + '%' : 'N/A'}</span></div>
+            </div>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+            <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Validation</span>
+             <div className="flex h-full pb-4 items-center justify-center text-xs text-slate-400 italic">Not tracked</div>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+            <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Test</span>
+             <div className="space-y-1">
+              <div className="flex justify-between text-xs"><span className="text-slate-600">Accuracy</span><span className="font-mono font-bold">{gen.test?.accuracy ? (gen.test.accuracy * 100).toFixed(1) + '%' : 'N/A'}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-slate-600">Sensitivity</span><span className="font-mono font-bold">{gen.test?.sensitivity ? (gen.test.sensitivity * 100).toFixed(1) + '%' : 'N/A'}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-slate-600">Specificity</span><span className="font-mono font-bold">{gen.test?.specificity ? (gen.test.specificity * 100).toFixed(1) + '%' : 'N/A'}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quantum Model Details */}
+      <div className="card-scientific bg-quantum-50 border border-quantum-200 rounded-xl p-6 shadow-sm space-y-4 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+          <Box className="w-32 h-32 text-quantum-900" />
+        </div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-quantum-900 flex items-center gap-2">
+           <Box className="w-4 h-4" /> QUANTUM MODEL DETAILS
+        </h3>
+
+        {evalContext.learning_type === 'QML' && evalContext.quantum ? (
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 relative z-10">
+            <div><span className="block text-[10px] text-quantum-700 uppercase font-bold mb-1">Qubits</span><span className="text-xl font-mono font-bold text-quantum-900">{evalContext.quantum.n_qubits || 'N/A'}</span></div>
+            <div><span className="block text-[10px] text-quantum-700 uppercase font-bold mb-1">Encoding</span><span className="text-sm font-bold text-quantum-900 mt-2 block">{evalContext.quantum.encoding || 'Angle'}</span></div>
+            <div><span className="block text-[10px] text-quantum-700 uppercase font-bold mb-1">Layers</span><span className="text-xl font-mono font-bold text-quantum-900">{evalContext.quantum.n_layers || 'N/A'}</span></div>
+            <div><span className="block text-[10px] text-quantum-700 uppercase font-bold mb-1">Gates</span><span className="text-xl font-mono font-bold text-quantum-900">{evalContext.quantum.gates || 'N/A'}</span></div>
+            <div><span className="block text-[10px] text-quantum-700 uppercase font-bold mb-1">Depth</span><span className="text-xl font-mono font-bold text-quantum-900">{evalContext.quantum.depth || 'N/A'}</span></div>
+            <div><span className="block text-[10px] text-quantum-700 uppercase font-bold mb-1">Shots</span><span className="text-sm font-bold text-quantum-900 mt-2 block">{evalContext.quantum.shots || 'Analytic'}</span></div>
+          </div>
+        ) : (
+          <p className="text-xs text-quantum-700 italic">Classical Model - No quantum configuration</p>
+        )}
+      </div>
+
+      {/* Model Explainability */}
+      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+          <h3 className="text-sm font-bold tracking-wider text-slate-800">MODEL EXPLAINABILITY</h3>
+          <p className="text-xs text-slate-500 mt-1">Feature importance / sensitivity</p>
+        </div>
+        <Link to={`/explainability/${evalContext.training_run_id}`} className="btn-secondary text-xs flex items-center space-x-2">
+          <Lightbulb className="w-4 h-4" />
+          <span>View Details</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
 
-      {/* Primary Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <MetricCard title="Accuracy" value="93.5%" subtitle="Overall Correct" />
-        <MetricCard
-          title="Sensitivity"
-          value={`${(sensitivity * 100).toFixed(1)}%`}
-          subtitle="True Positives"
-          badge="Screening"
-          badgeColor="success"
-        />
-        <MetricCard
-          title="Specificity"
-          value={`${(specificity * 100).toFixed(1)}%`}
-          subtitle="True Negatives"
-        />
-        <MetricCard
-          title="Precision"
-          value={`${(precision * 100).toFixed(1)}%`}
-          subtitle="Positive Value"
-        />
-        <MetricCard
-          title="F1-Score"
-          value={`${(f1 * 100).toFixed(1)}%`}
-          subtitle="Harmonic Mean"
-        />
-        <MetricCard
-          title="ROC-AUC"
-          value="0.865"
-          subtitle="Discrimination"
-          badge="High"
-          badgeColor="quantum"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Confusion Matrix Card */}
-        <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Confusion Matrix (Held-out Test Cohort)
-            </h3>
-            <span className="text-[11px] font-mono text-slate-400">Total N = 46 Patients</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-center text-xs">
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-              <span className="text-[10px] text-emerald-800 font-semibold uppercase block">
-                True Positives (TP)
-              </span>
-              <span className="text-2xl font-extrabold text-emerald-900 font-mono">39</span>
-              <span className="text-[10px] text-emerald-700 block mt-1">Cancer Correctly Detected</span>
-            </div>
-
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-              <span className="text-[10px] text-red-800 font-semibold uppercase block">
-                False Negatives (FN)
-              </span>
-              <span className="text-2xl font-extrabold text-red-900 font-mono">2</span>
-              <span className="text-[10px] text-red-700 block mt-1">Missed Diagnosis (Critical)</span>
-            </div>
-
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <span className="text-[10px] text-amber-800 font-semibold uppercase block">
-                False Positives (FP)
-              </span>
-              <span className="text-2xl font-extrabold text-amber-900 font-mono">1</span>
-              <span className="text-[10px] text-amber-700 block mt-1">Benign Flagged Positive</span>
-            </div>
-
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-              <span className="text-[10px] text-emerald-800 font-semibold uppercase block">
-                True Negatives (TN)
-              </span>
-              <span className="text-2xl font-extrabold text-emerald-900 font-mono">4</span>
-              <span className="text-[10px] text-emerald-700 block mt-1">Benign Correctly Identified</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Threshold Analysis Interactive Slider */}
-        <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Interactive Decision Threshold Tuning
-            </h3>
-            <span className="text-xs font-mono font-bold text-brand-900 bg-brand-50 px-2.5 py-0.5 rounded border border-brand-200">
-              $\tau = {threshold.toFixed(2)}$
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            <input
-              type="range"
-              min="0.10"
-              max="0.90"
-              step="0.05"
-              value={threshold}
-              onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              className="w-full accent-brand-800 cursor-pointer"
-            />
-            <div className="flex justify-between text-[11px] text-slate-400 font-mono">
-              <span>0.10 (High Sensitivity &bull; Early Screening)</span>
-              <span>0.50 (Standard)</span>
-              <span>0.90 (High Specificity)</span>
-            </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-            <div className="flex items-center space-x-2 text-slate-800 font-bold">
-              <Info className="w-4 h-4 text-brand-700" />
-              <span>Clinical Trade-off Mechanics</span>
-            </div>
-            <p className="text-slate-600 leading-relaxed text-[11px]">
-              In oncology screening, setting a lower decision threshold (e.g. $\tau = 0.30$) maximizes <strong>Sensitivity</strong> ({((1.0 - (0.3 - 0.1) * 0.42) * 100).toFixed(0)}%), ensuring near-zero false negatives. In confirmatory secondary diagnosis, a higher threshold preserves <strong>Specificity</strong>.
-            </p>
-          </div>
+      {/* Notice */}
+      <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-xs text-amber-800">
+        <ShieldCheck className="w-5 h-5 flex-shrink-0 text-amber-600" />
+        <div>
+          <p className="font-bold uppercase tracking-wider text-[10px] mb-0.5">Research / Prototype Notice</p>
+          <p>
+            This system is a research and computational screening prototype. Model outputs are strictly
+            intended for diagnostic research and decision support and are not a medical diagnosis.
+          </p>
         </div>
       </div>
-
-      {/* Safety Notice */}
-      <MedicalNotice />
     </div>
   );
 };

@@ -18,7 +18,7 @@ class TrainingRun(Document):
     
     # Configurations
     feature_config: Dict[str, Any] = Field(default_factory=dict)
-    model_config: Optional[Dict[str, Any]] = None
+    model_parameters: Optional[Dict[str, Any]] = None
     qml_config: Optional[Dict[str, Any]] = None
     training_config: Dict[str, Any] = Field(default_factory=dict)
     

@@ -44,6 +44,11 @@ export const DashboardPage: React.FC = () => {
     queryFn: modelsApi.listDefaults,
   });
 
+  const { data: registeredModels } = useQuery({
+    queryKey: ['userModels'],
+    queryFn: modelsApi.list,
+  });
+
   const { data: quantumDevices, isLoading: devicesLoading } = useQuery({
     queryKey: ['quantumDevices'],
     queryFn: quantumApi.listDevices,
@@ -55,6 +60,9 @@ export const DashboardPage: React.FC = () => {
   });
 
   const isLoading = datasetsLoading || modelsLoading || devicesLoading;
+  const allModels = [...(defaultModels || []), ...(registeredModels || [])]
+    .filter((model, index, list) => list.findIndex((candidate) => candidate.id === model.id) === index);
+  const experimentModels = allModels.filter((model) => model.configuration?.pretrained || model.configuration?.dataset_version_id);
 
   return (
     <div className="space-y-8 font-sans">
@@ -130,22 +138,22 @@ export const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title="Biomedical Datasets"
-            value={datasets?.length ?? 1}
+            value={datasets?.length ?? 0}
             subtitle="Clinical cohort files"
             icon={Database}
             badge="HIPAA Vault"
           />
           <MetricCard
-            title="Pretrained Models"
-            value={defaultModels?.length ?? 6}
-            subtitle="Linear/RBF SVM & PennyLane VQC"
+            title="Experiment checkpoints"
+            value={defaultModels?.filter((model) => model.configuration?.pretrained).length ?? 0}
+            subtitle="Loaded from Experimental_ML artifacts"
             icon={Layers}
-            badge="Default Zoo"
+            badge="Recorded models"
             badgeColor="quantum"
           />
           <MetricCard
             title="Quantum Simulators"
-            value={quantumDevices?.length ?? 3}
+            value={quantumDevices?.length ?? 0}
             subtitle="Noiseless & Noisy NISQ"
             icon={Zap}
             badge="Active"
@@ -153,7 +161,7 @@ export const DashboardPage: React.FC = () => {
           />
           <MetricCard
             title="Screening Experiments"
-            value={experiments?.length ?? 2}
+            value={experiments?.length ?? 0}
             subtitle="Reproducible audit chains"
             icon={BarChart3}
             badge="Validated"
@@ -167,9 +175,9 @@ export const DashboardPage: React.FC = () => {
         <div className="lg:col-span-2 card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Pre-trained Clinical Models</h3>
+              <h3 className="text-sm font-bold text-slate-900">Experiment checkpoints and trained models</h3>
               <p className="text-xs text-slate-500">
-                Production-validated classifiers benchmarked on lung cancer cohorts
+                Accuracy and supporting metrics recorded for the source checkpoints or each uploaded-data training run
               </p>
             </div>
             <Link
@@ -182,9 +190,9 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <div className="divide-y divide-slate-100">
-            {defaultModels?.slice(0, 4).map((model) => {
-              const latestVer = model.versions?.[0];
-              const isQML = model.model_type === 'VQC';
+            {experimentModels.slice(0, 5).map((model) => {
+              const metrics = model.configuration?.metrics || model.versions?.[0]?.metrics;
+              const hasAccuracy = typeof metrics?.accuracy === 'number';
               return (
                 <div key={model.id} className="py-3 flex items-center justify-between hover:bg-slate-50/80 px-2 rounded-lg transition-colors">
                   <div className="space-y-0.5">
@@ -198,11 +206,9 @@ export const DashboardPage: React.FC = () => {
                   <div className="flex items-center space-x-4 text-right">
                     <div>
                       <span className="text-xs font-bold text-slate-900">
-                        {latestVer?.metrics?.accuracy
-                          ? `${(latestVer.metrics.accuracy * 100).toFixed(1)}%`
-                          : '93.5%'}
+                        {hasAccuracy ? `${(metrics.accuracy * 100).toFixed(1)}%` : '—'}
                       </span>
-                      <span className="text-[10px] text-slate-400 block">Accuracy</span>
+                      <span className="text-[10px] text-slate-400 block">Accuracy · {typeof metrics?.test_samples === 'number' ? `${metrics.test_samples} test rows` : 'no metrics'}</span>
                     </div>
                     <Link
                       to={`/models/${model.id}`}

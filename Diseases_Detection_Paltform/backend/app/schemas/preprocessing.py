@@ -15,19 +15,20 @@ class PreprocessingConfigCreate(BaseModel):
 
 class PreprocessingPlanStep(BaseModel):
     """Discrete deterministic transformation step within an execution plan."""
-    step_id: int
+    step_id: str | int
     tool_name: str
-    rationale: str
+    rationale: str = ""
     parameters: Dict[str, Any] = Field(default_factory=dict)
     fit_on_train_only: bool = True
 
 
 class PreprocessingPlan(BaseModel):
-    """Generated or user-defined preprocessing plan requiring human approval."""
+    """Generated or user-defined preprocessing plan (acts as the unified PipelineConfig)."""
     dataset_id: str
     dataset_version_id: str
+    target_column: Optional[str] = None
     steps: List[PreprocessingPlanStep]
-    summary: str
+    summary: str = ""
     leakage_prevention_guarantee: str = "Learned transformers (imputer, scaler, encoder) are fit strictly on X_train."
 
 
@@ -60,3 +61,28 @@ class PlanApprovalRequest(BaseModel):
     """Action payload for human-in-the-loop plan confirmation."""
     approved: bool
     feedback: Optional[str] = None
+
+
+class AIModifyRequest(BaseModel):
+    """Payload for natural-language modification of a preprocessing pipeline."""
+    dataset_id: str
+    dataset_version_id: str
+    current_pipeline: PreprocessingPlan
+    user_instruction: str
+
+
+class AILogicChange(BaseModel):
+    action: Literal["add", "remove", "replace", "update"]
+    step_id: str
+    new_operation: Optional[PreprocessingPlanStep] = None
+    config_update: Optional[Dict[str, Any]] = None
+    reason: str
+
+
+class AIModifyResponse(BaseModel):
+    """Structured response from the LLM after processing natural language pipeline modification."""
+    status: Literal["valid", "invalid"]
+    explanation: str
+    changes: List[AILogicChange]
+    updated_pipeline: Optional[PreprocessingPlan] = None
+    warnings: List[str] = Field(default_factory=list)

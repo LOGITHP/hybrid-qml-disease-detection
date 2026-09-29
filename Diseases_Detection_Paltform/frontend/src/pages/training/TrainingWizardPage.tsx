@@ -13,6 +13,7 @@ export const TrainingWizardPage: React.FC = () => {
   const [cValue, setCValue] = useState(1);
   const [vqcLayers, setVqcLayers] = useState(2);
   const [vqcEpochs, setVqcEpochs] = useState(5);
+  const [customName, setCustomName] = useState('');
 
   const { data: datasets, isLoading: datasetsLoading } = useQuery({ queryKey: ['datasets'], queryFn: datasetsApi.list });
   const { data: models, isLoading: modelsLoading } = useQuery({ queryKey: ['defaultModels'], queryFn: modelsApi.listDefaults });
@@ -32,8 +33,18 @@ export const TrainingWizardPage: React.FC = () => {
     || datasets?.[0];
   const activeVersion = activeDataset?.versions?.find((version) => version.id === storedVersionId)
     || [...(activeDataset?.versions || [])].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
-  const recommendedModel = models?.find((model) => model.model_type === 'svm_linear') || models?.[0];
-  const activeModel = models?.find((model) => model.id === selectedModelId) || recommendedModel;
+  const selectableModels = (models || []).filter((model) => {
+    const config = model.configuration || {};
+    if (!config.pretrained) return true;
+    const checkpointFeatures = Array.isArray(config.selected_features) ? config.selected_features as string[] : [];
+    return (targetColumn || '').trim().toLowerCase() === 'lung_cancer'
+      && checkpointFeatures.length === selectedFeatures.length
+      && checkpointFeatures.every((feature, index) => feature === selectedFeatures[index]);
+  });
+  const recommendedModel = selectableModels.find((model) => model.configuration?.pretrained && model.model_type === 'svm_linear')
+    || selectableModels.find((model) => model.model_type === 'svm_linear')
+    || selectableModels[0];
+  const activeModel = selectableModels.find((model) => model.id === selectedModelId) || recommendedModel;
   const pipelineReady = !!activeVersion && pipelineVersionId === activeVersion.id
     && !!featureSelectionRunId && !!preprocessingRunId && selectedFeatures.length > 0;
 
@@ -51,6 +62,7 @@ export const TrainingWizardPage: React.FC = () => {
         feature_selection_run_id: featureSelectionRunId,
         preprocessing_run_id: preprocessingRunId,
         hyperparameters,
+        custom_name: customName.trim() || undefined,
       });
     },
     onSuccess: (run) => navigate(`/training/${run.id}`),
@@ -96,15 +108,15 @@ export const TrainingWizardPage: React.FC = () => {
 
           <section className="card-scientific space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Built-in model templates</h2>
-            <p className="text-[11px] text-slate-500">Templates are fitted to this upload at training time; they do not contain transferable pretrained weights.</p>
+            <p className="text-[11px] text-slate-500">A matching lung-cancer checkpoint appears only for its documented target and exact feature order. Other templates are fitted to this upload at training time.</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {(models || []).map((model) => {
+              {selectableModels.map((model) => {
                 const selected = (selectedModelId || recommendedModel?.id) === model.id;
                 const quantum = model.model_type === 'vqc';
                 return <button key={model.id} type="button" onClick={() => setSelectedModelId(model.id)} className={`rounded-xl border p-4 text-left transition-colors ${selected ? 'border-brand-800 bg-brand-50' : 'border-slate-200 hover:border-slate-300'}`}>
                   <div className="mb-2 flex items-center justify-between gap-2"><span className="text-xs font-bold text-slate-900">{model.name}</span><StatusBadge status={quantum ? 'VQC' : model.model_type.replace('svm_', 'SVM ').toUpperCase()} size="sm" /></div>
                   <p className="text-[11px] text-slate-500">{model.description}</p>
-                  {model.id === recommendedModel?.id && <span className="mt-2 block text-[10px] font-semibold text-emerald-700">Default tabular baseline</span>}
+                  {model.id === recommendedModel?.id && <span className="mt-2 block text-[10px] font-semibold text-emerald-700">Recommended for this dataset</span>}
                 </button>;
               })}
             </div>
@@ -123,8 +135,20 @@ export const TrainingWizardPage: React.FC = () => {
             <div className="flex items-center gap-2">{activeModel?.model_type === 'vqc' ? <Atom className="h-4 w-4 text-quantum-600" /> : <Sliders className="h-4 w-4 text-slate-500" />}<span>{activeModel?.name || 'Loading model templates'}</span></div>
             <p className="border-t border-slate-100 pt-3 text-slate-500">Evaluation uses a held-out test partition from the saved pipeline settings.</p>
           </div>
-          {trainMutation.isError && <p className="text-xs text-red-700">{trainMutation.error instanceof Error ? trainMutation.error.message : 'Training failed for this upload.'}</p>}
-          <button type="button" onClick={() => trainMutation.mutate()} disabled={trainMutation.isPending || !pipelineReady || !activeModel} className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-xs shadow-md">
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <label className="block space-y-1 text-xs font-semibold text-slate-700">
+              Custom Model Name (Optional)
+              <input
+                type="text"
+                placeholder="e.g. My Fine-Tuned VQC v2"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 font-normal focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </label>
+          </div>
+          {trainMutation.isError && <p className="mt-3 text-xs text-red-700">{trainMutation.error instanceof Error ? trainMutation.error.message : 'Training failed for this upload.'}</p>}
+          <button type="button" onClick={() => trainMutation.mutate()} disabled={trainMutation.isPending || !pipelineReady || !activeModel} className="btn-primary mt-3 flex w-full items-center justify-center gap-2 py-3 text-xs shadow-md">
             <Play className="h-4 w-4" /><span>{trainMutation.isPending ? 'Training on uploaded data…' : 'Start training run'}</span>
           </button>
         </aside>

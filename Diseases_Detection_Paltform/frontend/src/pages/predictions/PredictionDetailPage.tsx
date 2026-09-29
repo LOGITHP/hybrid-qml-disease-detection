@@ -1,212 +1,76 @@
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
-import {
-  Activity,
-  ArrowRight,
-  ShieldCheck,
-  RotateCcw,
-  Lightbulb,
-} from 'lucide-react';
-import { SinglePredictionResult } from '../../types';
+import { Link, useParams } from 'react-router-dom';
+import { Activity, ArrowRight, Lightbulb, RotateCcw } from 'lucide-react';
+import { PredictionResponse } from '../../types';
 import { MedicalNotice } from '../../components/common/MedicalNotice';
 import { EmptyState } from '../../components/common/EmptyState';
 
 export const PredictionDetailPage: React.FC = () => {
   const { predictionId } = useParams<{ predictionId: string }>();
+  const response = (() => {
+    try { return JSON.parse(sessionStorage.getItem('latest_prediction') || 'null') as PredictionResponse | null; }
+    catch { return null; }
+  })();
+  const inputs = (() => {
+    try { return JSON.parse(sessionStorage.getItem('latest_prediction_input') || '{}') as Record<string, unknown>; }
+    catch { return {}; }
+  })();
+  const modelName = sessionStorage.getItem('latest_prediction_model_name') || 'Trained model';
+  const result = response?.results?.[0];
 
-  // Retrieve the actual prediction generated in this session.
-  let result: SinglePredictionResult | null = null;
-  let inputFeatures: Record<string, any> | null = null;
-  let metrics: Record<string, any> | null = null;
+  if (!response || !result) return <EmptyState icon={Activity} title="No prediction result" description="Generate a prediction with a trained model to see its actual output and input values." />;
 
-  try {
-    const stored = sessionStorage.getItem('latest_prediction');
-    if (stored) result = JSON.parse(stored);
-    
-    const storedInput = sessionStorage.getItem('latest_prediction_input');
-    if (storedInput) inputFeatures = JSON.parse(storedInput);
-
-    const storedMetrics = sessionStorage.getItem('latest_prediction_metrics');
-    if (storedMetrics) metrics = JSON.parse(storedMetrics);
-  } catch (e) {
-    // Ignore parse errors
-  }
-
-  if (!result) return <EmptyState icon={Activity} title="No prediction result" description="Run an inference with a trained model to view its actual score and selected input features." />;
-
-  const riskLevel = result.risk_category;
-  const isHighRisk = riskLevel === 'HIGH';
-  const isMediumRisk = riskLevel === 'MEDIUM';
-
-  const riskBadgeStyles = isHighRisk
-    ? 'bg-red-50 text-red-700 border-red-200'
-    : isMediumRisk
-    ? 'bg-amber-50 text-amber-700 border-amber-200'
-    : 'bg-emerald-50 text-emerald-700 border-emerald-200';
-
-  const probPercent = result.score == null ? null : (result.score * 100).toFixed(1);
+  const risk = result.risk_stratification;
+  const isPositive = result.predicted_class === 1;
+  const score = result.probability;
+  const badge = risk?.risk_level === 'HIGH'
+    ? 'border-red-200 bg-red-50 text-red-700'
+    : risk?.risk_level === 'MEDIUM'
+      ? 'border-amber-200 bg-amber-50 text-amber-700'
+      : 'border-emerald-200 bg-emerald-50 text-emerald-700';
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+      <div className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center">
         <div>
-          <div className="flex items-center space-x-2">
-            <span className="font-mono text-xs text-slate-400">
-              Run Ref: {result.training_run_id?.substring(0, 8) || 'latest-screening'}
-            </span>
-            <span className={`badge border font-semibold ${riskBadgeStyles}`}>
-              Model category: {riskLevel || 'Unavailable'}
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
-            Clinical Screening Assessment
-          </h1>
-          <p className="text-xs text-slate-500">
-            Actual model output and its configurable classification threshold
-          </p>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span className="font-mono">{predictionId || result.sample_id || 'latest'}</span><span className={`rounded border px-2 py-0.5 font-semibold ${badge}`}>Prototype category: {risk?.risk_level || 'Unavailable'}</span></div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Prediction result</h1>
+          <p className="text-xs text-slate-500">{modelName} · {new Date(response.timestamp).toLocaleString()}</p>
         </div>
-
-        <div className="flex items-center space-x-3">
-          <Link to="/predictions" className="btn-secondary text-xs flex items-center space-x-1.5">
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Screen Another Patient</span>
-          </Link>
-          <Link
-            to={`/explainability/${result.training_run_id || 'demo'}`}
-            className="btn-primary text-xs flex items-center space-x-2"
-          >
-            <Lightbulb className="w-3.5 h-3.5" />
-            <span>Explain Model Prediction</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/predictions" className="btn-secondary flex items-center space-x-1.5 text-xs"><RotateCcw className="h-3.5 w-3.5" /><span>New prediction</span></Link>
+          <Link to="/explainability/latest" className="btn-primary flex items-center gap-2 text-xs"><Lightbulb className="h-3.5 w-3.5" /><span>Review inputs</span><ArrowRight className="h-3.5 w-3.5" /></Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Main Result Card */}
-          <div className="card-scientific bg-white border border-slate-200 rounded-xl p-8 shadow-sm space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
-              <div className="space-y-1">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Binary Prediction Class
-                </span>
-                <div className="flex items-baseline space-x-3">
-                  <span
-                    className={`text-3xl font-extrabold tracking-tight ${
-                      result.prediction === 1 ? 'text-red-700' : 'text-emerald-700'
-                    }`}
-                  >
-                  {result.predicted_label}
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono">
-                    Class {result.prediction}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-6 text-right">
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
-                    Model Score
-                  </span>
-                  <span className="text-3xl font-extrabold text-slate-900 font-mono">
-                    {probPercent == null ? 'Unavailable' : `${probPercent}%`}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
-                    Stratified Category
-                  </span>
-                  <span className={`badge text-sm px-3 py-1 font-bold border mt-0.5 ${riskBadgeStyles}`}>
-                    {riskLevel || 'Unavailable'}
-                  </span>
-                </div>
-              </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <section className="card-scientific space-y-5 rounded-xl border border-slate-200 bg-white p-7 shadow-sm">
+            <div className="flex flex-col justify-between gap-5 border-b border-slate-100 pb-5 sm:flex-row sm:items-center">
+              <div><span className="text-xs font-bold uppercase tracking-wider text-slate-400">Thresholded classification</span><div className={`mt-1 text-3xl font-extrabold ${isPositive ? 'text-red-700' : 'text-emerald-700'}`}>{result.predicted_label}</div><p className="text-xs text-slate-500">Class {result.predicted_class}</p></div>
+              <div className="text-left sm:text-right"><span className="block text-xs font-bold uppercase tracking-wider text-slate-400">Model output score</span><span className="font-mono text-3xl font-extrabold text-slate-900">{score == null ? 'Unavailable' : `${(score * 100).toFixed(1)}%`}</span><p className="text-[11px] text-slate-500">Threshold: {(response.decision_threshold_applied * 100).toFixed(0)}%</p></div>
             </div>
-
-            {/* Accessible Probability Visualizer */}
             <div className="space-y-2">
-              <div className="flex justify-between text-xs font-semibold text-slate-700">
-                <span>Model score</span>
-                <span className="font-mono">{result.score == null ? 'Unavailable' : result.score.toFixed(4)}</span>
-              </div>
-              <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden p-0.5 border border-slate-200">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    isHighRisk ? 'bg-red-500' : isMediumRisk ? 'bg-amber-500' : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${probPercent || 0}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-1">
-                <span>0% (Low)</span>
-                <span>35% (Threshold Low/Med)</span>
-                <span>65% (Threshold Med/High)</span>
-                <span>100% (High)</span>
-              </div>
+              <div className="flex justify-between text-xs font-semibold text-slate-700"><span>Model output</span><span className="font-mono">{score == null ? 'Unavailable' : score.toFixed(4)}</span></div>
+              <div className="h-4 overflow-hidden rounded-full border border-slate-200 bg-slate-100 p-0.5"><div className={`h-full rounded-full ${isPositive ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${Math.max(0, Math.min(100, (score || 0) * 100))}%` }} /></div>
+              <p className="text-[11px] text-slate-500">This score and its prototype category are research outputs, not a validated clinical risk estimate.</p>
             </div>
-          </div>
-          
-          {/* Explainability Section */}
-          {result.explanation?.top_features && (
-            <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Model Explanation (Top Features)</h3>
-              <div className="space-y-3">
-                {(result.explanation.top_features as any[]).map((f, i) => (
-                  <div key={i} className="flex justify-between text-xs items-center">
-                    <span className="font-mono">{f.feature}</span>
-                    <span className="text-slate-500">{typeof f.contribution === 'number' ? f.contribution.toFixed(4) : f.contribution}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          </section>
+          <section className="card-scientific rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Submitted feature values</h2>
+            <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Feature</th><th className="px-3 py-2">Value</th></tr></thead><tbody className="divide-y divide-slate-100">{result.input_features_used.map((feature) => <tr key={feature}><td className="px-3 py-2 font-mono font-semibold">{feature}</td><td className="px-3 py-2">{inputs[feature] == null ? 'Missing' : String(inputs[feature])}</td></tr>)}</tbody></table></div>
+          </section>
         </div>
 
-        <div className="space-y-4">
-          <div className="card-scientific bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Patient Input Values</h3>
-            {inputFeatures ? (
-              <div className="space-y-2">
-                {Object.entries(inputFeatures).map(([k, v]) => (
-                  <div key={k} className="flex justify-between text-xs pb-1 border-b border-slate-200 last:border-0">
-                    <span className="text-slate-600 font-medium">{k}</span>
-                    <span className="font-mono text-slate-900 font-bold">{v !== null ? String(v) : '—'}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500">No input features recorded.</p>
-            )}
-          </div>
-          
-          {metrics && (
-             <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Model Performance Context</h3>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                 <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                    <span className="block text-slate-500 mb-1">Sensitivity</span>
-                    <span className="font-bold text-slate-800">{(metrics.sensitivity * 100).toFixed(1)}%</span>
-                 </div>
-                 <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                    <span className="block text-slate-500 mb-1">Specificity</span>
-                    <span className="font-bold text-slate-800">{(metrics.specificity * 100).toFixed(1)}%</span>
-                 </div>
-                 <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                    <span className="block text-slate-500 mb-1">F1 Score</span>
-                    <span className="font-bold text-slate-800">{(metrics.f1_score * 100).toFixed(1)}%</span>
-                 </div>
-                 <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                    <span className="block text-slate-500 mb-1">ROC-AUC</span>
-                    <span className="font-bold text-slate-800">{metrics.roc_auc?.toFixed(3) || '—'}</span>
-                 </div>
-              </div>
-             </div>
-          )}
+        <aside className="space-y-4">
+          <section className="card-scientific space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Pipeline provenance</h2>
+            <div className="text-xs"><span className="block text-slate-500">Model</span><span className="break-all font-mono">{response.model_id}</span></div>
+            <div className="text-xs"><span className="block text-slate-500">Preprocessing run</span><span className="break-all font-mono">{response.preprocessing_run_id || 'Not recorded'}</span></div>
+            <div className="text-xs"><span className="block text-slate-500">Feature-selection run</span><span className="break-all font-mono">{response.feature_selection_run_id || 'Not recorded'}</span></div>
+          </section>
           <MedicalNotice />
-        </div>
+        </aside>
       </div>
     </div>
   );
