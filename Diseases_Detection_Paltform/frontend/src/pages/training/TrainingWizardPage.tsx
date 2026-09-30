@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Atom, CheckCircle2, ChevronRight, Cpu, Database, Filter, Play, Sliders, Trash2, Settings2 } from 'lucide-react';
+import { AlertTriangle, Atom, CheckCircle2, ChevronRight, Cpu, Database, Filter, Play, Sliders, Trash2, Settings2, Activity } from 'lucide-react';
 import { datasetsApi, featuresApi, modelsApi, trainingApi } from '../../api';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
@@ -459,6 +459,34 @@ export const TrainingWizardPage: React.FC = () => {
           )}
         </aside>
       </div>
+
+      {trainMutation.isPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-tr from-brand-50 to-transparent opacity-50"></div>
+            <div className="relative z-10 flex flex-col items-center text-center space-y-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-100 text-brand-700 shadow-inner">
+                {activeModel?.model_type === 'vqc' ? (
+                  <Atom className="h-8 w-8 animate-[spin_3s_linear_infinite]" />
+                ) : (
+                  <Activity className="h-8 w-8 animate-pulse" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Training in progress</h3>
+                <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                  {activeModel?.model_type === 'vqc' 
+                    ? 'Simulating quantum circuit and optimizing variational parameters. This may take a few minutes.' 
+                    : 'Fitting classical model parameters to the dataset...'}
+                </p>
+              </div>
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-brand-500 w-full animate-pulse rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
