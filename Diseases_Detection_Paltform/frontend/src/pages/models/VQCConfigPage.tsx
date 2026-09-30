@@ -6,6 +6,7 @@ import { CircuitDesigner } from '../../components/quantum/CircuitDesigner';
 type CircuitConfig = {
   n_qubits: number;
   n_layers: number;
+  epochs: number;
   encoding_method: 'angle_ry' | 'angle_rx';
   variational_gate: 'RY' | 'RZ';
   entanglement_strategy: 'linear_cnot' | 'ring_cnot' | 'none';
@@ -49,6 +50,7 @@ export const VQCConfigPage: React.FC = () => {
   const [config, setConfig] = useState<CircuitConfig>({
     n_qubits: Number(initial.n_qubits || Math.max(1, features.length || 4)),
     n_layers: initial.n_layers || 2,
+    epochs: initial.epochs || 50,
     encoding_method: initial.encoding_method || 'angle_ry',
     variational_gate: initial.variational_gate || 'RY',
     entanglement_strategy: initial.entanglement_strategy || 'linear_cnot',
@@ -134,6 +136,9 @@ export const VQCConfigPage: React.FC = () => {
             <label className="space-y-1 text-xs font-semibold text-slate-700">Variational Layers
               <input type="number" min={1} max={10} value={config.n_layers} onChange={(event) => update('n_layers', Number(event.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
             </label>
+            <label className="space-y-1 text-xs font-semibold text-slate-700">Training Epochs
+              <input type="number" min={1} max={1000} value={config.epochs} onChange={(event) => update('epochs', Number(event.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
+            </label>
             <label className="space-y-1 text-xs font-semibold text-slate-700">Encoding method
               <select value={config.encoding_method} onChange={(event) => update('encoding_method', event.target.value as CircuitConfig['encoding_method'])} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal">
                 <option value="angle_ry">Angle encoding · RY(xπ)</option><option value="angle_rx">Angle encoding · RX(xπ)</option>
@@ -171,7 +176,7 @@ export const VQCConfigPage: React.FC = () => {
         </section>
         <section className="card-scientific space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Save configuration</h2>
-          <p className="text-[11px] text-slate-500">Epochs and optimizer settings remain on the Training page. The circuit topology is stored locally until training begins.</p>
+          <p className="text-[11px] text-slate-500">The circuit topology and training configuration is stored locally until training begins.</p>
           {saved && <p role="status" className="text-xs font-semibold text-emerald-700 bg-emerald-50 p-2 rounded">Circuit configuration successfully saved.</p>}
           <button type="button" onClick={save} disabled={config.n_qubits < 1 || config.n_qubits > 8 || config.n_layers < 1 || (config.backend_type === 'default.mixed' && Object.values(config.noise_params).some((value) => value < 0 || value > 0.5))} className="btn-secondary flex w-full items-center justify-center gap-2 text-xs disabled:opacity-50"><Save className="h-4 w-4" /><span>Save circuit settings</span></button>
           <button type="button" onClick={() => { save(); navigate('/training'); }} disabled={config.n_qubits < 1 || config.n_qubits > 8 || !isCompatible} className="btn-primary flex w-full items-center justify-center gap-2 text-xs disabled:opacity-50"><span>Save and return to training</span><ArrowRight className="h-4 w-4" /></button>

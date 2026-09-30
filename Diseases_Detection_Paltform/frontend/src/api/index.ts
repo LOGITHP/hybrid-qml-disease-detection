@@ -161,6 +161,9 @@ export const featuresApi = {
     });
     return res.data.data;
   },
+  deleteRun: async (runId: string): Promise<void> => {
+    await apiClient.delete(`/features/runs/${runId}`);
+  },
 };
 
 export const modelsApi = {
@@ -214,6 +217,9 @@ export const trainingApi = {
   }): Promise<TrainingRun> => {
     const res = await apiClient.post<{ data: TrainingRun }>('/training', payload);
     return res.data.data;
+  },
+  deleteRun: async (runId: string): Promise<void> => {
+    await apiClient.delete(/features/runs/);
   },
 
   getStatus: async (runId: string): Promise<TrainingRun> => {

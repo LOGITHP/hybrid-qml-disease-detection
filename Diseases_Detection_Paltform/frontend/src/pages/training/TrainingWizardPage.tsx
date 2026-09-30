@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { AlertTriangle, Atom, CheckCircle2, ChevronRight, Cpu, Database, Filter, Play, Sliders } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, Atom, CheckCircle2, ChevronRight, Cpu, Database, Filter, Play, Sliders, Trash2, Settings2 } from 'lucide-react';
 import { datasetsApi, featuresApi, modelsApi, trainingApi } from '../../api';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
@@ -41,12 +41,11 @@ function PipelineStep({
 // ─────────────────────────────────────────────────────────────────────────────
 export const TrainingWizardPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedVersionId, setSelectedVersionId] = useState(() => sessionStorage.getItem('activeDatasetVersionId') || '');
   const [selectedFSRunId, setSelectedFSRunId] = useState(() => sessionStorage.getItem('activeFeatureSelectionRunId') || '');
   const [selectedModelId, setSelectedModelId] = useState(() => new URLSearchParams(window.location.search).get('model_id') || '');
   const [cValue, setCValue] = useState(1);
-  const [vqcLayers, setVqcLayers] = useState(2);
-  const [vqcEpochs, setVqcEpochs] = useState(5);
   const [customName, setCustomName] = useState('');
 
   // ── fetch data ───────────────────────────────────────────────────────────
@@ -130,7 +129,7 @@ export const TrainingWizardPage: React.FC = () => {
       let circuit: Record<string, unknown> = {};
       try { circuit = JSON.parse(sessionStorage.getItem('vqc_circuit_config') || '{}'); } catch { circuit = {}; }
       const hyperparameters = activeModel.model_type === 'vqc'
-        ? { layers: vqcLayers, epochs: vqcEpochs, ...circuit }
+        ? { layers: circuit.n_layers || 2, epochs: circuit.epochs || 50, ...circuit }
         : { C: cValue, gamma: 'scale' };
       return trainingApi.startRun({
         model_id: activeModel.id,
@@ -147,6 +146,13 @@ export const TrainingWizardPage: React.FC = () => {
       });
     },
     onSuccess: (run) => navigate(`/training/${run.id}`),
+  });
+
+  const deleteFsRunMutation = useMutation({
+    mutationFn: (id: string) => featuresApi.deleteRun(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fsRuns', selectedVersionId] });
+    },
   });
 
   if (datasetsLoading || modelsLoading) return <LoadingSkeleton rows={4} />;
@@ -192,7 +198,7 @@ export const TrainingWizardPage: React.FC = () => {
                 <optgroup key={ds.id} label={ds.name}>
                   {(ds.versions || []).map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.version_tag} · {v.row_count ?? '?'} rows
+                      {v.version_tag} · {v.row_count ?? '?'} rows · {v.column_count ?? '?'} features
                     </option>
                   ))}
                 </optgroup>
@@ -284,6 +290,20 @@ export const TrainingWizardPage: React.FC = () => {
                         <span className="block text-slate-500 mt-0.5 font-mono text-[10px]">{feats.join(', ')}</span>
                         <span className="block text-slate-400 mt-0.5">{dateStr}</span>
                       </span>
+                      <button
+                        type="button"
+                        className="ml-auto text-slate-400 hover:text-red-500 shrink-0 self-center"
+                        title="Delete run"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          if (confirm('Are you sure you want to delete this feature selection run?')) {
+                            deleteFsRunMutation.mutate(run.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </label>
                   );
                 })}
@@ -319,7 +339,12 @@ export const TrainingWizardPage: React.FC = () => {
                     <button
                       key={model.id}
                       type="button"
-                      onClick={() => setSelectedModelId(model.id)}
+                      onClick={() => {
+                        setSelectedModelId(model.id);
+                        if (model.model_type === 'vqc') {
+                          navigate('/models/vqc/configure');
+                        }
+                      }}
                       className={`rounded-xl border p-4 text-left transition-colors ${
                         selected ? 'border-brand-800 bg-brand-50' : 'border-slate-200 hover:border-slate-300'
                       }`}
@@ -336,18 +361,15 @@ export const TrainingWizardPage: React.FC = () => {
 
               {activeModel?.model_type === 'vqc' ? (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <label className="space-y-1">
-                      Variational layers
-                      <input type="number" min={1} max={5} value={vqcLayers} onChange={(e) => setVqcLayers(Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2" />
-                    </label>
-                    <label className="space-y-1">
-                      Epochs
-                      <input type="number" min={1} max={100} value={vqcEpochs} onChange={(e) => setVqcEpochs(Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2" />
-                    </label>
+                  <div className="flex items-center gap-2 rounded-lg border border-quantum-200 bg-quantum-50 p-4 text-xs">
+                    <Atom className="h-5 w-5 text-quantum-600 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-quantum-800">Advanced VQC settings enabled</p>
+                      <p className="text-quantum-700">The circuit configuration has been moved to its own page.</p>
+                    </div>
                   </div>
-                  <Link to="/models/vqc/configure" className="inline-flex items-center gap-2 rounded-lg border border-quantum-200 bg-quantum-50 px-3.5 py-2 text-xs font-semibold text-quantum-700 transition-colors hover:bg-quantum-100">
-                    <Atom className="h-4 w-4" /><span>Configure Advanced VQC Settings</span>
+                  <Link to="/models/vqc/configure" className="inline-flex items-center gap-2 rounded-lg border border-quantum-300 bg-white px-3.5 py-2 text-xs font-semibold text-quantum-700 transition-colors hover:bg-quantum-50">
+                    <Settings2 className="h-4 w-4" /><span>Configure Advanced VQC Settings</span>
                   </Link>
                 </div>
               ) : (

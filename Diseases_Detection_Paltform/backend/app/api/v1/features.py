@@ -58,3 +58,28 @@ async def list_feature_selection_runs(
         message="Fetched feature selection runs.",
         data=[r.model_dump(mode="json") for r in runs]
     )
+
+@router.delete("/runs/{run_id}", response_model=StandardResponse[Dict[str, Any]], status_code=status.HTTP_200_OK)
+async def delete_feature_selection_run(
+    run_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    from app.database.models.feature_selection import FeatureSelectionRun
+    from app.core.exceptions import ResourceNotFoundError
+    from beanie import PydanticObjectId
+    
+    try:
+        obj_id = PydanticObjectId(run_id)
+    except Exception:
+        raise ResourceNotFoundError("Feature selection run not found.")
+
+    run = await FeatureSelectionRun.get(obj_id)
+    if not run or (run.user_id != str(current_user.id) and current_user.role != "admin"):
+        raise ResourceNotFoundError("Feature selection run not found.")
+
+    await run.delete()
+    return StandardResponse(
+        message="Feature selection run deleted successfully.",
+        data={"id": run_id}
+    )
+
