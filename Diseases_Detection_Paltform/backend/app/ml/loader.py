@@ -25,6 +25,10 @@ def _get_project_root() -> Path:
     return parents[min(2, len(parents) - 1)]
 
 
+PROJECT_ROOT = _get_project_root()
+EXPERIMENT_ROOT = PROJECT_ROOT / "Experimental_ML" / "Lung_Cancer"
+
+
 class PretrainedModelLoader:
     """Manages loading of existing pre-trained CML and QML models into backend IModel instances."""
 

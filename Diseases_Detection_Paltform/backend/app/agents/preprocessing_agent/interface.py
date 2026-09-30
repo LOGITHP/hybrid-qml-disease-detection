@@ -64,15 +64,15 @@ class SplitManager:
         holdout_size = max(2, int(round(len(df) * (val_ratio + test_ratio))))
         holdout_size = min(holdout_size, len(df) - 2)
         stratify_all = y if can_stratify(y, holdout_size) else None
-        
+
         X_train, X_holdout, y_train, y_holdout = train_test_split(
             X, y, test_size=holdout_size, random_state=random_state, stratify=stratify_all
         )
-        
+
         test_fraction = test_ratio / (val_ratio + test_ratio)
         test_size = max(1, min(len(X_holdout) - 1, int(round(len(X_holdout) * test_fraction))))
         stratify_holdout = y_holdout if can_stratify(y_holdout, test_size) else None
-        
+
         X_val, X_test, y_val, y_test = train_test_split(
             X_holdout, y_holdout, test_size=test_size, random_state=random_state, stratify=stratify_holdout
         )
@@ -85,14 +85,14 @@ class ClassBalancer:
     def apply(X_train: pd.DataFrame, y_train: pd.Series, method: str, random_state: int = 42) -> Tuple[pd.DataFrame, pd.Series]:
         if not HAS_IMBLEARN:
             raise ValidationError("imbalanced-learn package is required for class balancing (SMOTE).")
-        
+
         if method.lower() == "smote":
             sampler = SMOTE(random_state=random_state)
         elif method.lower() == "random_oversample":
             sampler = RandomOverSampler(random_state=random_state)
         else:
             raise ValidationError(f"Unknown class balancing method: {method}")
-        
+
         X_resampled, y_resampled = sampler.fit_resample(X_train, y_train)
         return pd.DataFrame(X_resampled, columns=X_train.columns), pd.Series(y_resampled, name=y_train.name)
 
@@ -357,12 +357,12 @@ class PreprocessingAgent(IPreprocessingEngine):
         if not plan.steps or plan.steps[0].tool_name != "stratified_split":
             raise ValueError("The plan must begin with stratified_split to keep learned transformations training-only.")
 
-    async def generate_plan(self, df: pd.DataFrame, target_column: str) -> PreprocessingPlan:
+    def _default_plan_from_schema(self, df: pd.DataFrame, target_column: str) -> PreprocessingPlan:
         """Build a deterministic plan from the uploaded dataframe's schema and target."""
         stats = self.analyze_dataset(df)
         numerical_columns = [c for c in stats["numerical_columns"] if c != target_column]
         categorical_columns = [c for c in stats["categorical_columns"] if c != target_column]
-        
+
         steps = [
             PreprocessingPlanStep(
                 step_id="split", tool_name="stratified_split",
@@ -370,7 +370,7 @@ class PreprocessingAgent(IPreprocessingEngine):
                 fit_on_train_only=False
             )
         ]
-        
+
         if numerical_columns:
             steps.append(PreprocessingPlanStep(
                 step_id="num_imp", tool_name="median_imputer",
@@ -398,6 +398,10 @@ class PreprocessingAgent(IPreprocessingEngine):
             generation_note="Built from the uploaded columns and data types using deterministic rules. No LLM call was made.",
         )
 
+    async def generate_plan(self, df: pd.DataFrame, target_column: str) -> PreprocessingPlan:
+        """Return the deterministic schema-derived baseline plan."""
+        return self._default_plan_from_schema(df, target_column)
+
     def execute_plan(
         self,
         df: pd.DataFrame,
@@ -412,11 +416,22 @@ class PreprocessingAgent(IPreprocessingEngine):
             raise ValidationError(
                 f"Target column '{target_column}' contains missing labels. Remove or label those rows before preprocessing."
             )
+        if plan is None:
+            plan = self._default_plan_from_schema(df, target_column)
 
         # Infinite feature values behave like missing values for preprocessing. They
         # are imputed only when the approved plan requests an imputer; otherwise the
         # finite-value audit below returns a clear error.
-        working_df = df.copy()
+        if feature_columns is not None:
+            requested_features = list(dict.fromkeys(str(column) for column in feature_columns))
+            invalid_features = [column for column in requested_features if column not in df.columns or column == target_column]
+            if invalid_features:
+                raise ValidationError(f"Selected feature columns are not available: {', '.join(invalid_features)}.")
+            if not requested_features:
+                raise ValidationError("Select at least one feature column before preprocessing.")
+            working_df = df[requested_features + [target_column]].copy()
+        else:
+            working_df = df.copy()
         numeric_feature_columns = [
             column for column in working_df.columns
             if column != target_column
@@ -434,6 +449,8 @@ class PreprocessingAgent(IPreprocessingEngine):
         def find_step(*tool_names: str) -> Optional[PreprocessingPlanStep]:
             return next((step_by_name[name] for name in tool_names if name in step_by_name), None)
 
+        all_available_features = [column for column in df.columns if column != target_column]
+
         def configured_columns(
             step: Optional[PreprocessingPlanStep],
             available: List[str],
@@ -450,14 +467,14 @@ class PreprocessingAgent(IPreprocessingEngine):
                 requested = [str(column) for column in raw_columns]
             else:
                 raise ValidationError(f"The columns parameter for '{step.tool_name}' must be a list of column names.")
-            unknown = sorted(set(requested) - set(available))
+            unknown = sorted(set(requested) - set(all_available_features))
             if unknown:
                 raise ValidationError(
                     f"Preprocessing step '{step.tool_name}' refers to columns that are not available as features: {unknown}."
                 )
             selected = set(requested)
             return [column for column in available if column in selected]
-        
+
         # 1. SPLIT FIRST
         split_step = find_step("stratified_split")
         split_params = split_step.parameters if split_step else {}
@@ -502,7 +519,7 @@ class PreprocessingAgent(IPreprocessingEngine):
             if pd.api.types.is_numeric_dtype(X_train_raw[c]) and not pd.api.types.is_bool_dtype(X_train_raw[c])
         ]
         cat_cols = [c for c in X_train_raw.columns if c not in num_cols]
-        
+
         transformers = []
         # Numeric operations are applied only to the columns named in the plan.
         # Grouping columns by operation keeps the saved transformer fit-on-train
@@ -584,14 +601,14 @@ class PreprocessingAgent(IPreprocessingEngine):
             raise ValidationError("The selected preprocessing plan leaves no usable feature columns.")
 
         preprocessor = ColumnTransformer(transformers, remainder="drop")
-        
+
         # Main execution pipeline
         X_train_t = preprocessor.fit_transform(X_train_raw)
         X_val_t = preprocessor.transform(X_val_raw)
         X_test_t = preprocessor.transform(X_test_raw)
-        
+
         current_feature_names = preprocessor.get_feature_names_out()
-        
+
         # DataFrame wrapper for selection
         X_train_df = pd.DataFrame(X_train_t, columns=current_feature_names, index=X_train_raw.index)
         X_val_df = pd.DataFrame(X_val_t, columns=current_feature_names, index=X_val_raw.index)
@@ -625,11 +642,11 @@ class PreprocessingAgent(IPreprocessingEngine):
             pca = DimensionalityReducer.get_pca(pca_step.parameters)
             if len(X_train_df.columns) < pca.n_components:
                 raise ValidationError(f"Cannot apply PCA with {pca.n_components} components on {len(X_train_df.columns)} features.")
-            
+
             X_train_pca = pca.fit_transform(X_train_df)
             X_val_pca = pca.transform(X_val_df)
             X_test_pca = pca.transform(X_test_df)
-            
+
             pc_names = [f"PC{i+1}" for i in range(pca.n_components)]
             X_train_df = pd.DataFrame(X_train_pca, columns=pc_names, index=X_train_df.index)
             X_val_df = pd.DataFrame(X_val_pca, columns=pc_names, index=X_val_df.index)

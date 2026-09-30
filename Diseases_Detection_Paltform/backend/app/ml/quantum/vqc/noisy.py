@@ -10,9 +10,12 @@ def create_noisy_vqc_circuit(
     p_gate: float = 0.01,
     p_cnot: float = 0.02,
     p_meas: float = 0.01,
+    encoding_method: str = "angle_ry",
+    variational_gate: str = "RY",
+    entanglement_strategy: str = "linear_cnot",
 ):
     """Build a noisy QNode on 'default.mixed' simulator matching existing NISQ experiments.
-    
+
     Noise channels:
     - DepolarizingChannel on single-qubit gates (p_gate)
     - DepolarizingChannel on two-qubit CNOT gates (p_cnot)
@@ -23,20 +26,28 @@ def create_noisy_vqc_circuit(
     @qml.qnode(dev)
     def circuit(x, weights):
         # 1. Angle Encoding with gate noise
+        encoder = qml.RY if encoding_method == "angle_ry" else qml.RX
+        rotation = qml.RY if variational_gate == "RY" else qml.RZ
         for i in range(n_qubits):
-            qml.RY(x[..., i] * pnp.pi, wires=i)
+            encoder(x[..., i] * pnp.pi, wires=i)
             qml.DepolarizingChannel(p_gate, wires=i)
 
         # 2. Variational Layers with entangling noise
         for l in range(n_layers):
             for i in range(n_qubits):
-                qml.RY(weights[l, i], wires=i)
+                rotation(weights[l, i], wires=i)
                 qml.DepolarizingChannel(p_gate, wires=i)
 
-            for i in range(n_qubits - 1):
-                qml.CNOT(wires=[i, i + 1])
-                qml.DepolarizingChannel(p_cnot, wires=i)
-                qml.DepolarizingChannel(p_cnot, wires=i + 1)
+            if entanglement_strategy == "linear_cnot":
+                edges = [(i, i + 1) for i in range(n_qubits - 1)]
+            elif entanglement_strategy == "ring_cnot" and n_qubits > 1:
+                edges = [(i, i + 1) for i in range(n_qubits - 1)] + [(n_qubits - 1, 0)]
+            else:
+                edges = []
+            for control, target in edges:
+                qml.CNOT(wires=[control, target])
+                qml.DepolarizingChannel(p_cnot, wires=control)
+                qml.DepolarizingChannel(p_cnot, wires=target)
 
         # 3. Readout error channel
         for i in range(n_qubits):

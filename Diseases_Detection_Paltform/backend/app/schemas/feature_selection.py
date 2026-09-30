@@ -30,9 +30,12 @@ class FeatureSelectionResponse(BaseModel):
     user_id: str
     preprocessing_run_id: Optional[str] = None
     ranking_method: str
+    ranking_data_partition: Optional[str] = None
+    ranking_random_state: Optional[int] = None
     target_column: Optional[str] = None
     feature_count: int
     selected_features: List[str]
+    all_features: Optional[List[str]] = None  # Complete list of feature columns available in the dataset (excluding target)
     ranking_scores: Optional[Dict[str, float]] = None
     created_at: datetime
     updated_at: datetime

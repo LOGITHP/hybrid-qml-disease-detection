@@ -66,15 +66,11 @@ def test_preprocessing_data_leakage_prevention():
 
 
 def test_quantum_registry_backends():
-    """Verify QuantumRegistry provides Simulator, Noisy Simulator, and Hardware abstractions."""
+    """Verify only configured PennyLane simulators are advertised as available."""
     sim = quantum_registry.get_backend("simulator")
     noisy = quantum_registry.get_backend("noisy_simulator")
-    hardware = quantum_registry.get_backend("ibm_hardware")
 
     assert sim.get_device_info()["device_type"] == "simulator"
     assert noisy.get_device_info()["device_type"] == "noisy_simulator"
-    assert hardware.get_device_info()["device_type"] == "hardware"
-
-    # Hardware without token should raise graceful error
-    with pytest.raises(Exception):
-        hardware.submit_job({"wires": 4})
+    with pytest.raises(Exception, match="QUANTUM_BACKEND_NOT_FOUND"):
+        quantum_registry.get_backend("ibm_hardware")

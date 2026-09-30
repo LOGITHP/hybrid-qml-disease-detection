@@ -23,6 +23,7 @@ class PredictionRequest(BaseModel):
 
 
 class SinglePredictionResult(BaseModel):
+    prediction_id: Optional[str] = None
     predicted_class: int
     predicted_label: str
     probability: Optional[float] = None
@@ -33,6 +34,9 @@ class SinglePredictionResult(BaseModel):
 
 class PredictionResponse(BaseModel):
     model_id: str
+    model_version: Optional[str] = None
+    dataset_id: Optional[str] = None
+    dataset_version_id: Optional[str] = None
     preprocessing_run_id: Optional[str] = None
     feature_selection_run_id: Optional[str] = None
     decision_threshold_applied: float

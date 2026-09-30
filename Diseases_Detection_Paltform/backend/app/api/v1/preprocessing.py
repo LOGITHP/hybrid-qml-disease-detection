@@ -126,8 +126,11 @@ async def execute_preprocessing_plan(
         status="completed",
         config_params={
             "mode": payload.mode,
+            "target_column": target_column,
+            "steps": [step.model_dump(mode="json") for step in plan.steps],
             "plan_generation_method": payload.generation_method,
             "plan_generation_provider": payload.generation_provider,
+            "plan_summary": plan.summary,
         }
     )
     await preprocessing_run.insert()
@@ -158,6 +161,27 @@ async def execute_preprocessing_plan(
         status="ready"
     )
     await artifact.insert()
+    preprocessing_run.artifact_storage_path = artifact_path
+    preprocessing_run.target_column = target_column
+    preprocessing_run.original_feature_count = len(result["original_features"])
+    preprocessing_run.final_feature_count = len(result["feature_names"])
+    preprocessing_run.final_feature_names = result["feature_names"]
+    preprocessing_run.is_ready_for_training = True
+    await preprocessing_run.save()
+
+    processing_status = dict((version.dataset_metadata or {}).get("processing_status") or {})
+    version.status = "preprocessed"
+    version.dataset_metadata = {
+        **(version.dataset_metadata or {}),
+        "processing_status": {
+            **processing_status,
+            "uploaded": True,
+            "preprocessed": True,
+            "feature_selection": bool(processing_status.get("feature_selection")),
+        },
+        "latest_preprocessing_run_id": str(preprocessing_run.id),
+    }
+    await version.save()
 
     return StandardResponse(
         message="Preprocessing executed successfully with data leakage prevention.",
@@ -190,14 +214,14 @@ async def list_preprocessing_artifacts(
     current_user: User = Depends(get_current_user)
 ):
     from app.database.models.preprocessing import PreprocessingRun, PreprocessingArtifact
-    
+
     query = {"user_id": str(current_user.id)}
     if dataset_version_id:
         query["dataset_version_id"] = dataset_version_id
-    
+
     # Fetch from the new PreprocessingArtifact collection
     artifacts = await PreprocessingArtifact.find(query).to_list()
-    
+
     return StandardResponse(
         message="Fetched preprocessing artifacts.",
         data=[a.model_dump(mode="json") for a in artifacts]
@@ -226,7 +250,7 @@ async def modify_pipeline_nlp(
     df = dataset_service.load_version_dataframe(dataset_id=version.dataset_id, version_id=version.id)
     agent = PreprocessingAgent()
     result = await agent.modify_pipeline(payload, df)
-    
+
     return StandardResponse(
         message="AI evaluated the instruction and produced a modification response.",
         data=result

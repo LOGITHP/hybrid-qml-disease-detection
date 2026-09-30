@@ -68,6 +68,6 @@ async def test_default_models_accessible_to_all_users(client: AsyncClient):
     assert custom_res.status_code == 201
     custom_id = custom_res.json()["data"]["id"]
 
-    # 8. User 2 CANNOT access User 1's private model (403 Forbidden)
+    # 8. User 2 cannot access User 1's private model; the API hides its existence.
     forbidden_res = await client.get(f"/api/v1/models/{custom_id}", headers=auth2)
-    assert forbidden_res.status_code == 403
+    assert forbidden_res.status_code == 404

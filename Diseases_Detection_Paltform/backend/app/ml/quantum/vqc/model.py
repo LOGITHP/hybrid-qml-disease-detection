@@ -22,6 +22,9 @@ class VariationalQuantumClassifier(IModel):
         is_noisy: bool = False,
         noise_params: Optional[Dict[str, float]] = None,
         random_seed: int = 42,
+        encoding_method: str = "angle_ry",
+        variational_gate: str = "RY",
+        entanglement_strategy: str = "linear_cnot",
     ):
         self.n_qubits = n_qubits
         self.n_layers = n_layers
@@ -31,6 +34,9 @@ class VariationalQuantumClassifier(IModel):
         self.is_noisy = is_noisy
         self.noise_params = noise_params or {"p_gate": 0.01, "p_cnot": 0.02, "p_meas": 0.01}
         self.random_seed = random_seed
+        self.encoding_method = encoding_method
+        self.variational_gate = variational_gate
+        self.entanglement_strategy = entanglement_strategy
 
         # Initialize trainable variational parameters
         np.random.seed(self.random_seed)
@@ -43,12 +49,18 @@ class VariationalQuantumClassifier(IModel):
             self.circuit = create_noisy_vqc_circuit(
                 n_qubits=self.n_qubits,
                 n_layers=self.n_layers,
+                encoding_method=self.encoding_method,
+                variational_gate=self.variational_gate,
+                entanglement_strategy=self.entanglement_strategy,
                 **self.noise_params,
             )
         else:
             self.circuit = create_vqc_circuit(
                 n_qubits=self.n_qubits,
                 n_layers=self.n_layers,
+                encoding_method=self.encoding_method,
+                variational_gate=self.variational_gate,
+                entanglement_strategy=self.entanglement_strategy,
             )
 
     @property
@@ -124,6 +136,9 @@ class VariationalQuantumClassifier(IModel):
             "batch_size": self.batch_size,
             "is_noisy": self.is_noisy,
             "noise_params": self.noise_params,
+            "encoding_method": self.encoding_method,
+            "variational_gate": self.variational_gate,
+            "entanglement_strategy": self.entanglement_strategy,
             "weights": self.weights.tolist() if hasattr(self.weights, "tolist") else None,
             "bias": float(self.bias),
         }
@@ -137,15 +152,24 @@ class VariationalQuantumClassifier(IModel):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        self.encoding_method = getattr(self, "encoding_method", "angle_ry")
+        self.variational_gate = getattr(self, "variational_gate", "RY")
+        self.entanglement_strategy = getattr(self, "entanglement_strategy", "linear_cnot")
         # Recreate the quantum circuit
         if self.is_noisy:
             self.circuit = create_noisy_vqc_circuit(
                 n_qubits=self.n_qubits,
                 n_layers=self.n_layers,
+                encoding_method=self.encoding_method,
+                variational_gate=self.variational_gate,
+                entanglement_strategy=self.entanglement_strategy,
                 **self.noise_params,
             )
         else:
             self.circuit = create_vqc_circuit(
                 n_qubits=self.n_qubits,
                 n_layers=self.n_layers,
+                encoding_method=self.encoding_method,
+                variational_gate=self.variational_gate,
+                entanglement_strategy=self.entanglement_strategy,
             )

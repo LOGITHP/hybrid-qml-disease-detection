@@ -15,7 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { datasetsApi, modelsApi, experimentsApi, quantumApi } from '../../api';
+import { datasetsApi, modelsApi, quantumApi } from '../../api';
 import { MetricCard } from '../../components/common/MetricCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { MedicalNotice } from '../../components/common/MedicalNotice';
@@ -25,7 +25,7 @@ const workflowSteps = [
   { step: '01', title: 'Dataset', path: '/datasets', active: true },
   { step: '02', title: 'Preprocessing', path: '/preprocessing', active: true },
   { step: '03', title: 'Features', path: '/features', active: true },
-  { step: '04', title: 'Model Zoo', path: '/models', active: true },
+  { step: '04', title: 'Configuration', path: '/configuration', active: true },
   { step: '05', title: 'Training', path: '/training', active: true },
   { step: '06', title: 'Evaluation', path: '/evaluation', active: true },
   { step: '07', title: 'Prediction', path: '/predictions', active: true },
@@ -54,15 +54,15 @@ export const DashboardPage: React.FC = () => {
     queryFn: quantumApi.listDevices,
   });
 
-  const { data: experiments } = useQuery({
-    queryKey: ['experiments'],
-    queryFn: experimentsApi.list,
-  });
-
   const isLoading = datasetsLoading || modelsLoading || devicesLoading;
   const allModels = [...(defaultModels || []), ...(registeredModels || [])]
     .filter((model, index, list) => list.findIndex((candidate) => candidate.id === model.id) === index);
-  const experimentModels = allModels.filter((model) => model.configuration?.pretrained || model.configuration?.dataset_version_id);
+  const trainedModels = allModels.filter((model) => model.status === 'trained' || model.status === 'candidate' || model.configuration?.pretrained);
+  const topModel = [...trainedModels].sort((a, b) => {
+    const accA = a.configuration?.metrics?.accuracy || a.versions?.[0]?.metrics?.accuracy || 0;
+    const accB = b.configuration?.metrics?.accuracy || b.versions?.[0]?.metrics?.accuracy || 0;
+    return accB - accA;
+  })[0];
 
   return (
     <div className="space-y-8 font-sans">
@@ -109,19 +109,19 @@ export const DashboardPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+        <div className="flex flex-nowrap overflow-x-auto gap-3 pb-2 scrollbar-thin scrollbar-thumb-slate-200">
           {workflowSteps.map((step, idx) => (
             <Link
               key={step.step}
               to={step.path}
-              className="p-3 bg-slate-50 hover:bg-brand-50/60 border border-slate-200 hover:border-brand-300 rounded-xl transition-all group flex flex-col justify-between"
+              className="min-w-[130px] flex-1 p-3 bg-slate-50 hover:bg-brand-50/60 border border-slate-200 hover:border-brand-300 rounded-xl transition-all group flex flex-col justify-between"
             >
               <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 group-hover:text-brand-600 mb-2">
                 <span>{step.step}</span>
                 <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-800 group-hover:text-brand-900 block">
+                <span className="text-xs font-semibold text-slate-800 group-hover:text-brand-900 block truncate">
                   {step.title}
                 </span>
                 <span className="text-[10px] text-slate-400">Step {idx + 1}</span>
@@ -143,11 +143,11 @@ export const DashboardPage: React.FC = () => {
             icon={Database}
           />
           <MetricCard
-            title="Experiment checkpoints"
-            value={defaultModels?.filter((model) => model.configuration?.pretrained).length ?? 0}
-            subtitle="Loaded from Experimental_ML artifacts"
+            title="Trained Models"
+            value={trainedModels.length}
+            subtitle="Custom and pretrained"
             icon={Layers}
-            badge="Recorded models"
+            badge="Available"
             badgeColor="quantum"
           />
           <MetricCard
@@ -158,13 +158,6 @@ export const DashboardPage: React.FC = () => {
             badge="Active"
             badgeColor="success"
           />
-          <MetricCard
-            title="Screening Experiments"
-            value={experiments?.length ?? 0}
-            subtitle="Reproducible audit chains"
-            icon={BarChart3}
-            badge="Validated"
-          />
         </div>
       )}
 
@@ -174,61 +167,59 @@ export const DashboardPage: React.FC = () => {
         <div className="lg:col-span-2 card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Experiment checkpoints and trained models</h3>
+              <h3 className="text-sm font-bold text-slate-900">Top Performing Model</h3>
               <p className="text-xs text-slate-500">
-                Accuracy and supporting metrics recorded for the source checkpoints or each uploaded-data training run
+                Highest accuracy model across all designs and datasets
               </p>
             </div>
             <Link
-              to="/models"
+              to="/evaluation/comparison"
               className="text-xs font-medium text-brand-700 hover:text-brand-900 flex items-center"
             >
-              <span>View All</span>
+              <span>Compare All</span>
               <ArrowRight className="w-3.5 h-3.5 ml-1" />
             </Link>
           </div>
 
-          <div className="divide-y divide-slate-100">
-            {experimentModels.slice(0, 5).map((model) => {
-              const metrics = model.configuration?.metrics || model.versions?.[0]?.metrics;
+          <div className="pt-2 pb-2">
+            {topModel ? (() => {
+              const metrics = topModel.configuration?.metrics || topModel.versions?.[0]?.metrics;
               const hasAccuracy = typeof metrics?.accuracy === 'number';
+              const datasetId = topModel.configuration?.dataset_id || 'Unknown Dataset';
               return (
-                <div key={model.id} className="py-3 flex items-center justify-between hover:bg-slate-50/80 px-2 rounded-lg transition-colors">
-                  <div className="space-y-0.5">
+                <div className="p-4 bg-brand-50 border border-brand-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
                     <div className="flex items-center space-x-2">
-                      <span className="font-semibold text-xs text-slate-900">{model.name}</span>
-                      <StatusBadge status={model.model_type} size="sm" />
+                      <span className="font-bold text-lg text-brand-900">{topModel.name}</span>
+                      <StatusBadge status={topModel.model_type} size="sm" />
                     </div>
-                    <p className="text-[11px] text-slate-500 line-clamp-1">{model.description}</p>
+                    <p className="text-xs text-brand-700 font-medium flex items-center">
+                      <Database className="w-3.5 h-3.5 mr-1" />
+                      Dataset ID: <span className="font-mono ml-1">{datasetId.length > 20 ? datasetId.slice(0, 8) + '...' : datasetId}</span>
+                    </p>
+                    <p className="text-xs text-slate-600 line-clamp-1">{topModel.description}</p>
                   </div>
-
-                  <div className="flex items-center space-x-4 text-right">
-                    <div>
-                      <span className="text-xs font-bold text-slate-900">
+                  <div className="flex flex-col items-start sm:items-end space-y-2">
+                    <div className="text-left sm:text-right">
+                      <span className="text-2xl font-bold text-emerald-600">
                         {hasAccuracy ? `${(metrics.accuracy * 100).toFixed(1)}%` : '—'}
                       </span>
-                      <span className="text-[10px] text-slate-400 block">Accuracy · {typeof metrics?.test_samples === 'number' ? `${metrics.test_samples} test rows` : 'no metrics'}</span>
+                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-bold">Accuracy</span>
                     </div>
                     <Link
-                      to={`/models/${model.id}`}
-                      className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                      to={`/models/${topModel.id}`}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-700 hover:bg-brand-800 rounded-lg transition-colors"
                     >
-                      Inspect
+                      Inspect Model
                     </Link>
                   </div>
                 </div>
               );
-            })}
-          </div>
-
-          <div className="pt-2">
-            <Link
-              to="/evaluation/comparison"
-              className="w-full py-2.5 bg-quantum-50 hover:bg-quantum-100 text-quantum-700 border border-quantum-200 rounded-lg text-xs font-semibold flex items-center justify-center space-x-2 transition-colors"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>Launch Multi-Model Comparative Benchmark</span>
-            </Link>
+            })() : (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-slate-500 text-sm">
+                No trained models available to display.
+              </div>
+            )}
           </div>
         </div>
 

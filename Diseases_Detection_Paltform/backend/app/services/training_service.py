@@ -8,7 +8,7 @@ import joblib
 import numpy as np
 import logging
 import pandas as pd
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
 
 from app.agents.preprocessing_agent.interface import PreprocessingAgent
 from app.core.exceptions import ResourceNotFoundError, ValidationError
@@ -16,7 +16,7 @@ from app.database.models.evaluation import Evaluation
 from app.database.models.experiment import Experiment
 from app.database.models.feature_selection import FeatureSelectionRun
 from app.database.models.model import Model
-from app.database.models.preprocessing import PreprocessingRun
+from app.database.models.preprocessing import PreprocessingArtifact, PreprocessingRun
 from app.database.models.training import TrainingRun
 from app.ml.classical.svm.linear import SVMLinearModel
 from app.ml.classical.svm.rbf import SVMRBFModel
@@ -95,7 +95,16 @@ class TrainingService:
             configured_target = config.get("target_column")
             if configured_target and configured_target != target:
                 raise ValidationError("Preprocessing and feature selection use different target columns.")
-            steps = [PreprocessingPlanStep.model_validate(step) for step in config.get("steps", [])]
+            steps_data = config.get("steps") or []
+            if not steps_data:
+                artifact = await PreprocessingArtifact.find_one({
+                    "preprocessing_run_id": str(preprocessing_run.id),
+                    "user_id": user_id,
+                })
+                steps_data = (artifact.pipeline_config or {}).get("steps", []) if artifact else []
+            if not steps_data:
+                raise ValidationError("The selected preprocessing run has no saved transformation steps. Re-run preprocessing before training.")
+            steps = [PreprocessingPlanStep.model_validate(step) for step in steps_data]
         else:
             steps = self._default_plan_steps(df, features)
 
@@ -116,6 +125,15 @@ class TrainingService:
         X_train, X_test = processed["X_train"], processed["X_test"]
         template_config = template.configuration or {}
         is_pretrained = bool(template_config.get("pretrained"))
+        layers = int(template_config.get("n_layers", hyperparameters.get("layers", 2)))
+        configured_encoding = str(template_config.get("encoding", "")).lower()
+        encoding_method = str(hyperparameters.get(
+            "encoding_method", "angle_rx" if "rx" in configured_encoding else "angle_ry"
+        ))
+        variational_gate = str(hyperparameters.get("variational_gate", "RY"))
+        entanglement_strategy = str(hyperparameters.get("entanglement_strategy", "linear_cnot"))
+        is_noisy_quantum = bool(is_noisy_quantum or template_config.get("noise_channels"))
+        noise_params = noise_params or template_config.get("noise_channels")
         if is_pretrained:
             checkpoint_features = template_config.get("selected_features") or []
             if target.strip().lower() != "lung_cancer" or features != checkpoint_features:
@@ -158,7 +176,7 @@ class TrainingService:
 
         X_train = X_train[:, feature_order_indices]
         X_test = X_test[:, feature_order_indices]
-        
+
         logger.debug(f"[TRAINING TRACE] Applied feature selection. X_train.shape={X_train.shape}, X_test.shape={X_test.shape}")
 
         if is_pretrained and template_config.get("model_file"):
@@ -183,15 +201,39 @@ class TrainingService:
                 raise ValidationError("SVM regularization C must be greater than zero.")
             estimator = SVMRBFModel(C=c_value, gamma=hyperparameters.get("gamma", "scale"))
         elif template.model_type == "vqc":
-            layers = int(hyperparameters.get("layers", 2))
+            layers = int(hyperparameters.get("layers", layers))
             epochs = int(hyperparameters.get("epochs", 5))
+            requested_qubits = int(hyperparameters.get("n_qubits", X_train.shape[1]))
+            learning_rate = float(hyperparameters.get("learning_rate", 0.03))
+            batch_size = int(hyperparameters.get("batch_size", 32))
+            encoding_method = str(hyperparameters.get("encoding_method", encoding_method))
+            variational_gate = str(hyperparameters.get("variational_gate", variational_gate))
+            entanglement_strategy = str(hyperparameters.get("entanglement_strategy", entanglement_strategy))
+            backend_type = str(hyperparameters.get("backend_type", "default.qubit"))
             if not 1 <= layers <= 5 or not 1 <= epochs <= 1000:
                 raise ValidationError("VQC layers must be 1–5 and epochs must be 1–1000.")
-            if X_train.shape[1] > 10:
-                raise ValidationError("VQC is limited to 10 encoded feature dimensions; select fewer features or use an SVM baseline.")
+            if encoding_method not in {"angle_ry", "angle_rx"}:
+                raise ValidationError("VQC encoding must be angle_ry or angle_rx for this PennyLane circuit implementation.")
+            if variational_gate not in {"RY", "RZ"}:
+                raise ValidationError("VQC trainable gates must be RY or RZ for this PennyLane circuit implementation.")
+            if entanglement_strategy not in {"linear_cnot", "ring_cnot", "none"}:
+                raise ValidationError("VQC entanglement must be linear_cnot, ring_cnot, or none.")
+            if requested_qubits != X_train.shape[1]:
+                raise ValidationError(f"The configured {requested_qubits}-qubit circuit does not match the transformed feature width ({X_train.shape[1]}). Update feature mapping before training.")
+            if X_train.shape[1] > 8:
+                raise ValidationError("PennyLane simulator runs are limited to 8 encoded feature dimensions; select fewer features or use an SVM baseline.")
+            if not 0.0001 <= learning_rate <= 1.0 or not 1 <= batch_size <= 4096:
+                raise ValidationError("VQC learning rate must be between 0.0001–1 and batch size must be 1–4096.")
+            if is_noisy_quantum:
+                noise_params = noise_params or {"p_gate": 0.01, "p_cnot": 0.02, "p_meas": 0.01}
+                if any(float(value) < 0 or float(value) > 0.5 for value in noise_params.values()):
+                    raise ValidationError("Noisy simulator probabilities must be between 0 and 0.5.")
             estimator = VariationalQuantumClassifier(
                 n_qubits=X_train.shape[1], n_layers=layers, epochs=epochs,
+                lr=learning_rate, batch_size=batch_size,
                 is_noisy=is_noisy_quantum, noise_params=noise_params,
+                encoding_method=encoding_method, variational_gate=variational_gate,
+                entanglement_strategy=entanglement_strategy,
             )
         else:
             raise ValidationError(f"Unsupported model type '{template.model_type}'.")
@@ -203,7 +245,9 @@ class TrainingService:
             estimator.fit(X_train, y_train)
             logger.debug(f"[TRAINING TRACE] Estimator fit completed.")
         duration = time.time() - started_at
+        inference_started = time.perf_counter()
         probabilities = _positive_class_probabilities(estimator, X_test)
+        inference_duration_ms = round((time.perf_counter() - inference_started) * 1000 / max(len(y_test), 1), 6)
         predictions = (probabilities >= 0.5).astype(int)
         accuracy = float(accuracy_score(y_test, predictions))
         sensitivity = float(recall_score(y_test, predictions, zero_division=0))
@@ -222,12 +266,12 @@ class TrainingService:
         train_specificity = float(tr_tn / (tr_tn + tr_fp)) if tr_tn + tr_fp else 0.0
 
         metrics = {
-            "accuracy": accuracy, "balanced_accuracy": (sensitivity + specificity) / 2,
+            "accuracy": accuracy, "balanced_accuracy": float(balanced_accuracy_score(y_test, predictions)),
             "sensitivity": sensitivity, "specificity": specificity, "precision": precision,
             "f1_score": f1, "roc_auc": auc, "training_duration_seconds": round(duration, 3),
             "evaluation_partition": "held-out test", "positive_class": positive_class,
             "target_column": target, "selected_features": features,
-            "test_samples": int(len(y_test)),
+            "test_samples": int(len(y_test)), "inference_duration_ms": inference_duration_ms,
             "confusion_matrix": {"tp": tp, "tn": tn, "fp": fp, "fn": fn},
             "y_true_test": y_test.tolist(),
             "y_prob_test": probabilities.tolist(),
@@ -251,21 +295,36 @@ class TrainingService:
         logger.debug(f"[TRAINING TRACE] Creating Model record in database: {trained_model_name}")
         trained_model = await self.model_repo.create(Model(
             user_id=user_id, name=trained_model_name,
-            description=f"Trained on uploaded dataset version {version.version_tag}.",
+            description=(
+                f"Pretrained checkpoint evaluated on uploaded dataset version {version.version_tag}."
+                if is_pretrained else f"Trained on uploaded dataset version {version.version_tag}."
+            ),
             model_type=template.model_type, is_quantum=template.model_type == "vqc",
             is_default=False, status="trained",
+            dataset_id=str(version.dataset_id), dataset_version_id=str(version.id),
+            preprocessing_run_id=str(preprocessing_run.id) if preprocessing_run else None,
+            feature_selection_run_id=str(feature_run.id), selected_features_snapshot=features,
             configuration={
                 "dataset_version_id": str(version.id),
+                "dataset_version_tag": version.version_tag,
+                "dataset_id": str(version.dataset_id),
+                "dataset_name": dataset_name,
                 "preprocessing_run_id": str(preprocessing_run.id) if preprocessing_run else None,
+                "preprocessing_version": 1 if preprocessing_run else None,
                 "feature_selection_run_id": str(feature_run.id), "target_column": target,
+                "feature_selection_method": feature_run.ranking_method,
                 "selected_features": features, "hyperparameters": hyperparameters,
+                "training_config": {"random_state": 42, "evaluation_partition": "held-out test"},
+                "framework": "PennyLane" if template.model_type == "vqc" else "scikit-learn",
+                "model_version": 1,
                 "pretrained_used": is_pretrained,
                 "pretrained_source_model_id": template_config.get("model_id") if is_pretrained else None,
+                "pretrained_source_model_name": template.name if is_pretrained else None,
                 "pretrained_source_metrics": template_config.get("metrics") if is_pretrained else None,
                 "metrics": {
                     key: metrics.get(key) for key in (
                         "accuracy", "balanced_accuracy", "sensitivity", "specificity", "precision",
-                        "f1_score", "roc_auc", "training_duration_seconds", "test_samples", "confusion_matrix",
+                        "f1_score", "roc_auc", "training_duration_seconds", "inference_duration_ms", "test_samples", "confusion_matrix",
                     )
                 },
             },
@@ -299,18 +358,33 @@ class TrainingService:
                     "n_layers": layers,
                     "gates": specs.get("num_operations", 0),
                     "depth": specs.get("depth", 0),
-                    "shots": "Analytic (None)" if not estimator.is_noisy else "1024 (Default)",
+                    "shots": "Analytic (None)",
                     "encoding": "Angle Encoding",
-                    "is_noisy": is_noisy_quantum,
-                    "backend_type": "default.mixed" if is_noisy_quantum else "default.qubit"
+                    "encoding_method": encoding_method,
+                    "feature_to_qubit": {name: index for index, name in enumerate(processed["feature_names"])},
+                    "variational_gate": variational_gate,
+                    "entanglement_strategy": entanglement_strategy,
+                    "measurement": "Pauli-Z expectation pooled by mean",
+                    "is_noisy": bool(estimator.is_noisy),
+                    "backend_type": backend_type
                 }
             except Exception as e:
                 qml_config = {
                     "n_qubits": X_train.shape[1],
                     "n_layers": layers,
+                    "encoding_method": encoding_method,
+                    "feature_to_qubit": {name: index for index, name in enumerate(processed["feature_names"])},
+                    "variational_gate": variational_gate,
+                    "entanglement_strategy": entanglement_strategy,
+                    "measurement": "Pauli-Z expectation pooled by mean",
                     "is_noisy": is_noisy_quantum,
-                    "backend_type": "default.mixed" if is_noisy_quantum else "default.qubit"
+                    "backend_type": backend_type
                 }
+
+        trained_model.configuration["quantum_config"] = qml_config
+        trained_model.configuration["metrics"]["balanced_accuracy"] = metrics["balanced_accuracy"]
+        trained_model.configuration["metrics"]["inference_duration_ms"] = inference_duration_ms
+        await self.model_repo.update(trained_model)
 
         run = await self.training_repo.create(TrainingRun(
             user_id=user_id, model_id=str(trained_model.id), dataset_version_id=str(version.id),
@@ -319,9 +393,20 @@ class TrainingService:
             learning_type="QML" if template.model_type == "vqc" else "CML",
             model_type=template.model_type,
             status="completed", metrics=metrics,
+            model_parameters={
+                "parameter_count": int(X_train.shape[1] * layers + 1) if template.model_type == "vqc" else None,
+            },
+            training_config={
+                "hyperparameters": hyperparameters,
+                "random_state": 42,
+                "is_noisy_quantum": is_noisy_quantum,
+                "noise_params": noise_params,
+            },
             feature_config={"selected_features": features, "target_column": target},
             qml_config=qml_config
         ))
+        trained_model.training_run_id = str(run.id)
+        await self.model_repo.update(trained_model)
         await Evaluation(
             user_id=user_id, model_id=str(trained_model.id), dataset_version_id=str(version.id),
             accuracy=accuracy, precision=precision, recall=sensitivity, f1_score=f1,

@@ -15,10 +15,10 @@ class DatasetService:
     def __init__(self, dataset_repo: DatasetRepository = None, storage: Optional[LocalArtifactStorage] = None):
         self.dataset_repo = dataset_repo or DatasetRepository()
         self.storage = storage or artifact_storage
-        
+
     async def list_user_datasets(self, user_id: str):
         return await self.dataset_repo.list_by_user(user_id)
-        
+
     async def create_dataset(self, user_id: str, name: str, description: str = None):
         dataset = Dataset(user_id=user_id, name=name, description=description)
         return await self.dataset_repo.create(dataset)
@@ -27,12 +27,17 @@ class DatasetService:
         dataset = await self.dataset_repo.get_by_id(dataset_id)
         if not dataset:
             raise ResourceNotFoundError("Dataset", dataset_id)
-        if dataset.user_id != user_id and not is_admin:
+        # Allow access to system-seeded datasets and user's own datasets
+        if dataset.user_id != user_id and dataset.user_id != "system" and not is_admin:
             raise ResourceNotFoundError("Dataset", dataset_id)
         return dataset
 
     async def delete_dataset(self, dataset_id: str, user_id: str, is_admin: bool = False):
         dataset = await self.get_dataset(dataset_id, user_id, is_admin)
+        # Prevent deletion of system datasets by regular users
+        if dataset.user_id == "system" and not is_admin:
+            from app.core.exceptions import ValidationError
+            raise ValidationError("System default datasets cannot be deleted.")
         await self.dataset_repo.delete_versions(dataset_id)
         await self.dataset_repo.delete(dataset)
 
@@ -40,14 +45,15 @@ class DatasetService:
         version = await self.dataset_repo.get_version(version_id)
         if not version:
             raise ResourceNotFoundError("DatasetVersion", version_id)
-        if version.user_id != user_id and not is_admin:
+        # Allow access to system-seeded dataset versions
+        if version.user_id != user_id and version.user_id != "system" and not is_admin:
             raise ResourceNotFoundError("DatasetVersion", version_id)
         return version
 
     async def upload_version(self, dataset_id: str, user_id: str, file_bytes: bytes, filename: str, version_tag: str, is_admin: bool = False):
         # Validate dataset exists
         dataset = await self.get_dataset(dataset_id, user_id, is_admin)
-        
+
         # Parse CSV
         try:
             df = pd.read_csv(io.BytesIO(file_bytes))
@@ -56,7 +62,7 @@ class DatasetService:
 
         if df.empty or len(df.columns) == 0:
             raise ValidationError("The uploaded CSV must contain at least one row and one column.")
-            
+
         # Create DB record
         version = DatasetVersion(
             dataset_id=dataset_id,
@@ -71,16 +77,21 @@ class DatasetService:
                 "file_size_bytes": len(file_bytes),
                 "columns": [str(column) for column in df.columns],
                 "dtypes": {str(column): str(dtype) for column, dtype in df.dtypes.items()},
+                "processing_status": {
+                    "uploaded": True,
+                    "preprocessed": False,
+                    "feature_selection": False,
+                },
             },
         )
         created_version = await self.dataset_repo.create_version(version)
-        
+
         # Save artifact
         rel_path = f"datasets/{dataset_id}/versions/{created_version.id}/original.csv"
         self.storage.save(rel_path, file_bytes)
-        
+
         return created_version
-        
+
     async def analyze_version(
         self,
         version_id: str,
@@ -200,7 +211,7 @@ class DatasetService:
                 return None
             return value
         return str(value)
-        
+
     def load_version_dataframe(self, dataset_id: str, version_id: str) -> pd.DataFrame:
         rel_path = f"datasets/{dataset_id}/versions/{version_id}/original.csv"
         csv_bytes = self.storage.load(rel_path)
@@ -225,6 +236,7 @@ class DatasetService:
         feature_columns = [str(col) for col in df.columns if col != target_column]
         if not feature_columns:
             raise ValidationError("The dataset has no feature columns after selecting the target.")
+        all_features = feature_columns  # Store the complete list before any subsetting
         y = df[target_column]
         class_count = int(y.nunique(dropna=True))
         if y.isna().any() or class_count < 2:
@@ -260,13 +272,28 @@ class DatasetService:
                     ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
                 ]), categorical_columns))
             from sklearn.compose import ColumnTransformer
+            from sklearn.model_selection import train_test_split
             transformer = ColumnTransformer(transformers, verbose_feature_names_out=True)
             feature_frame = df[feature_columns].replace([np.inf, -np.inf], np.nan)
             for column in categorical_columns:
                 feature_frame[column] = feature_frame[column].apply(
                     lambda value: np.nan if pd.isna(value) else str(value)
                 )
-            matrix = np.asarray(transformer.fit_transform(feature_frame), dtype=float)
+            can_stratify = int(y.value_counts().min()) >= 2 and y.nunique() <= max(2, int(len(y) * 0.3))
+            try:
+                X_train_raw, _, y_train, _ = train_test_split(
+                    feature_frame,
+                    y.astype(str),
+                    test_size=0.30,
+                    random_state=42,
+                    stratify=y.astype(str) if can_stratify else None,
+                )
+            except ValueError as exc:
+                raise ValidationError(f"The dataset is too small to create a safe feature-ranking split: {exc}") from exc
+
+            # Fit imputers and encoders only on the training partition. Ranking is
+            # then computed on that same partition, leaving the holdout unseen.
+            matrix = np.asarray(transformer.fit_transform(X_train_raw), dtype=float)
             if not np.isfinite(matrix).all():
                 raise ValidationError("Feature preprocessing produced non-finite values. Check columns with only missing or infinite data.")
             encoded_names = [str(name) for name in transformer.get_feature_names_out()]
@@ -281,7 +308,7 @@ class DatasetService:
                     source_columns.append(max(matches, key=len))
 
             from sklearn.preprocessing import LabelEncoder
-            encoded_target = LabelEncoder().fit_transform(y.astype(str))
+            encoded_target = LabelEncoder().fit_transform(y_train.astype(str))
             if ranking_method == "mutual_info":
                 from sklearn.feature_selection import mutual_info_classif
                 discrete_mask = np.asarray([name.startswith("categorical__") for name in encoded_names], dtype=bool)
@@ -297,11 +324,12 @@ class DatasetService:
             elif ranking_method == "lasso":
                 from sklearn.linear_model import LogisticRegression
                 from sklearn.preprocessing import StandardScaler
+                lasso_scaler = StandardScaler()
                 estimator = LogisticRegression(
                     penalty="l1", solver="liblinear", C=1.0, max_iter=2000,
                     class_weight="balanced", random_state=42,
                 )
-                estimator.fit(StandardScaler().fit_transform(matrix), encoded_target)
+                estimator.fit(lasso_scaler.fit_transform(matrix), encoded_target)
                 scores = np.mean(np.abs(estimator.coef_), axis=0)
             elif ranking_method == "correlation":
                 scores = np.asarray([
@@ -330,10 +358,25 @@ class DatasetService:
             user_id=user_id,
             target_column=target_column,
             ranking_method=ranking_method,
+            ranking_data_partition="manual selection" if ranking_method == "manual" else "training partition only",
+            ranking_random_state=None if ranking_method == "manual" else 42,
             feature_count=len(chosen_features),
             selected_features=chosen_features,
+            all_features=feature_columns,  # Every column available (excl. target) — never changes per version
             ranking_scores=ranking_scores,
             status="completed"
         )
         await fs_run.insert()
+        processing_status = dict((version.dataset_metadata or {}).get("processing_status") or {})
+        processing_status.update({"uploaded": True, "feature_selection": True})
+        version.status = "feature_selected"
+        version.dataset_metadata = {
+            **(version.dataset_metadata or {}),
+            "processing_status": processing_status,
+            "latest_feature_selection_run_id": str(fs_run.id),
+            "all_features": feature_columns,           # ALL available columns (excl. target), never overwritten
+            "selected_features": chosen_features,       # The active/chosen subset
+            "selected_feature_count": len(chosen_features),
+        }
+        await version.save()
         return fs_run

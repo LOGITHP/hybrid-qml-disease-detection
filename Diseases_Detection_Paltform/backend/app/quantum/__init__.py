@@ -5,7 +5,6 @@ from app.quantum.registry import (
     quantum_registry,
     SimulatorQuantumBackend,
     NoisySimulatorQuantumBackend,
-    HardwareQuantumBackend,
 )
 
 __all__ = [
@@ -13,5 +12,4 @@ __all__ = [
     "quantum_registry",
     "SimulatorQuantumBackend",
     "NoisySimulatorQuantumBackend",
-    "HardwareQuantumBackend",
 ]

@@ -85,24 +85,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobile }) => {
               : 'Verifying Gateway'}
           </span>
         </div>
-
-        {/* Quick Compare Action */}
-        <Link
-          to="/evaluation/comparison"
-          className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 bg-quantum-50 hover:bg-quantum-100 text-quantum-700 border border-quantum-200 rounded-lg text-xs font-medium transition-colors"
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>Compare Models</span>
-        </Link>
-
-        {/* Quick Predict Action */}
-        <Link
-          to="/predictions"
-          className="btn-primary text-xs py-1.5 px-3 flex items-center space-x-1.5"
-        >
-          <Activity className="w-3.5 h-3.5" />
-          <span>Predict</span>
-        </Link>
       </div>
     </header>
   );

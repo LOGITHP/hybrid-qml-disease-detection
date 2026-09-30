@@ -23,17 +23,22 @@ async def get_evaluation_context(
     run = await TrainingRun.get(training_run_id)
     if not run or run.user_id != str(current_user.id):
         raise HTTPException(status_code=404, detail="Training Run not found")
+    from app.database.models.model import Model
+    model = await Model.get(run.model_id) if run.model_id else None
+    if not model or (model.user_id != str(current_user.id) and not model.is_default):
+        raise HTTPException(status_code=404, detail="Model not found")
 
     metrics = run.metrics or {}
-    
+
     # Try to fetch dataset info
-    dataset_name = "Unknown Dataset"
+    dataset_name = "Dataset unavailable"
+    version_tag = "Unknown"
     if run.dataset_version_id:
         import uuid
         try:
-            version_id = uuid.UUID(run.dataset_version_id) if '-' in run.dataset_version_id else run.dataset_version_id
-            version = await DatasetVersion.get(version_id)
+            version = await DatasetVersion.get(run.dataset_version_id)
             if version:
+                version_tag = version.version_tag
                 dataset = await Dataset.get(version.dataset_id)
                 if dataset:
                     dataset_name = dataset.name
@@ -43,7 +48,13 @@ async def get_evaluation_context(
     return {
         "training_run_id": str(run.id),
         "dataset_id": run.dataset_version_id,
+        "dataset_version_id": run.dataset_version_id,
+        "dataset_version_tag": version_tag,
         "dataset_name": dataset_name,
+        "model_id": str(model.id),
+        "model_name": model.name,
+        "model_version": str((model.configuration or {}).get("model_version", model.id)),
+        "evaluation_created_at": run.created_at,
         "preprocessing_run_id": run.preprocessing_run_id,
         "feature_selection_run_id": run.feature_selection_run_id,
         "learning_type": run.learning_type,
@@ -51,6 +62,7 @@ async def get_evaluation_context(
         "evaluation_set": metrics.get("evaluation_partition", "held-out test"),
         "target_column": metrics.get("target_column", "Unknown"),
         "selected_feature_count": len(run.feature_config.get("selected_features", [])),
+        "selected_features": run.feature_config.get("selected_features", []),
         "sample_count": len(metrics.get("y_true_test", [])) if "y_true_test" in metrics else 0,
         "metrics": {
             "accuracy": metrics.get("accuracy", 0.0),
@@ -87,8 +99,9 @@ async def compare_training_runs(
     runs = []
     for rid in run_ids:
         r = await TrainingRun.get(rid)
-        if r and r.user_id == str(current_user.id):
-            runs.append(r)
+        if not r or r.user_id != str(current_user.id):
+            raise HTTPException(status_code=404, detail="One or more selected training runs were not found")
+        runs.append(r)
 
     if len(runs) < 2:
         raise HTTPException(status_code=404, detail="Could not find sufficient valid training runs to compare.")

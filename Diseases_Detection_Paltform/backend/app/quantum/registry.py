@@ -1,6 +1,6 @@
 """Quantum Provider and Device Registry supporting Simulator, Noisy Simulator, and Physical Hardware."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from app.core.exceptions import AppException
 from app.interfaces.quantum import IQuantumBackend
 
@@ -13,11 +13,16 @@ class SimulatorQuantumBackend(IQuantumBackend):
 
     def get_device_info(self) -> Dict[str, Any]:
         return {
+            "device_id": "simulator",
             "name": "PennyLane Statevector Simulator",
             "device_type": "simulator",
             "num_qubits": self.num_qubits,
+            "qubits": self.num_qubits,
             "provider": "PennyLane",
             "is_available": True,
+            "status": "ONLINE",
+            "shots_supported": [],
+            "average_queue_time_seconds": 0,
         }
 
     def validate_configuration(self, circuit_config: Dict[str, Any]) -> bool:
@@ -53,11 +58,16 @@ class NoisySimulatorQuantumBackend(IQuantumBackend):
 
     def get_device_info(self) -> Dict[str, Any]:
         return {
+            "device_id": "noisy_simulator",
             "name": "PennyLane Noisy Mixed-State Simulator",
             "device_type": "noisy_simulator",
             "num_qubits": self.num_qubits,
+            "qubits": self.num_qubits,
             "provider": "PennyLane",
             "is_available": True,
+            "status": "ONLINE",
+            "shots_supported": [],
+            "average_queue_time_seconds": 0,
             "noise_model": {
                 "p_gate": self.p_gate,
                 "p_cnot": self.p_cnot,
@@ -86,68 +96,13 @@ class NoisySimulatorQuantumBackend(IQuantumBackend):
         return True
 
 
-class HardwareQuantumBackend(IQuantumBackend):
-    """Real Quantum Hardware integration abstraction (e.g. IBM Quantum, AWS Braket, Rigetti)."""
-
-    def __init__(self, provider_name: str, device_name: str, api_token: Optional[str] = None):
-        self.provider_name = provider_name
-        self.device_name = device_name
-        self.api_token = api_token
-
-    def get_device_info(self) -> Dict[str, Any]:
-        return {
-            "name": self.device_name,
-            "device_type": "hardware",
-            "provider": self.provider_name,
-            "is_available": bool(self.api_token),
-            "auth_configured": bool(self.api_token),
-        }
-
-    def validate_configuration(self, circuit_config: Dict[str, Any]) -> bool:
-        return True
-
-    def run(self, circuit_func: Any, shots: int = 1000, **kwargs: Any) -> Any:
-        if not self.api_token:
-            raise AppException(
-                status_code=400,
-                code="QUANTUM_HARDWARE_CREDENTIALS_MISSING",
-                message=f"No valid API token configured for real quantum hardware provider '{self.provider_name}'. Please configure credentials in your environment or use the quantum simulator.",
-            )
-        # Real hardware requires asynchronous submission
-        raise AppException(
-            status_code=400,
-            code="SYNCHRONOUS_EXECUTION_UNSUPPORTED",
-            message="Physical quantum QPUs require asynchronous job submission via submit_job().",
-        )
-
-    def submit_job(self, circuit_data: Dict[str, Any], shots: int = 1000) -> str:
-        if not self.api_token:
-            raise AppException(
-                status_code=400,
-                code="QUANTUM_HARDWARE_CREDENTIALS_MISSING",
-                message=f"No valid API token configured for real quantum hardware provider '{self.provider_name}'.",
-            )
-        import uuid
-        return f"{self.provider_name.lower()}-job-{uuid.uuid4().hex[:12]}"
-
-    def get_job_status(self, job_id: str) -> str:
-        return "queued"
-
-    def get_job_result(self, job_id: str) -> Dict[str, Any]:
-        return {"status": "queued", "message": "Job is waiting in remote physical QPU queue."}
-
-    def cancel_job(self, job_id: str) -> bool:
-        return True
-
-
 class QuantumRegistry:
-    """Central registry of quantum execution backends."""
+    """Register only the PennyLane simulator backends supported by this platform."""
 
     def __init__(self):
         self._backends: Dict[str, IQuantumBackend] = {
             "simulator": SimulatorQuantumBackend(num_qubits=8),
             "noisy_simulator": NoisySimulatorQuantumBackend(num_qubits=8),
-            "ibm_hardware": HardwareQuantumBackend(provider_name="IBM Quantum", device_name="ibm_brisbane"),
         }
 
     def get_backend(self, name: str) -> IQuantumBackend:

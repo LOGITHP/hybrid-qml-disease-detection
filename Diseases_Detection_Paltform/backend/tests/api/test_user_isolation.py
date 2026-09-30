@@ -43,7 +43,7 @@ async def test_cross_user_resource_access_denied(client: AsyncClient):
         f"/api/v1/datasets/{dataset_id}",
         headers={"Authorization": f"Bearer {token_b}"},
     )
-    # Must deny access with 403 Forbidden
-    assert forbidden_resp.status_code == 403
+    # Return not found to avoid revealing whether another user's resource exists.
+    assert forbidden_resp.status_code == 404
     error_code = forbidden_resp.json()["error"]["code"]
-    assert error_code == "PERMISSION_DENIED"
+    assert error_code == "RESOURCE_NOT_FOUND"

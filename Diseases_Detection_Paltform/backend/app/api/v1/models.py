@@ -2,12 +2,16 @@
 
 from typing import List
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import StreamingResponse
+from io import BytesIO
 from app.core.dependencies import get_current_user, get_model_service
 from app.database.models.user import User
 from app.schemas.common import StandardResponse
 from app.schemas.evaluation import ComprehensiveComparisonResponse, ModelComparisonRequest
 from app.schemas.model import ModelCreate, ModelResponse
 from app.services.model_service import ModelService
+from app.services.artifact_service import artifact_storage
+from app.core.exceptions import ResourceNotFoundError, ValidationError
 
 router = APIRouter(prefix="/models", tags=["Models & Comparative Benchmarks"])
 
@@ -73,7 +77,7 @@ async def compare_models(
     service: ModelService = Depends(get_model_service),
 ):
     """Compare two or more selected models across ALL evaluation metrics.
-    
+
     Evaluates:
     - Overall Accuracy
     - Balanced Accuracy
@@ -108,6 +112,43 @@ async def get_model(
         is_admin=(current_user.role == "admin"),
     )
     return ModelResponse.model_validate(model)
+
+
+@router.get("/{model_id}/artifact")
+async def download_model_artifact(
+    model_id: str,
+    current_user: User = Depends(get_current_user),
+    service: ModelService = Depends(get_model_service),
+):
+    """Download the serialized artifact for an owned trained model."""
+    model = await service.get_model(model_id, str(current_user.id), is_admin=(current_user.role == "admin"))
+    if model.status not in {"trained", "candidate"}:
+        raise ValidationError("Only trained or validation-candidate models have downloadable artifacts.")
+    path = f"models/{model.id}/model.joblib"
+    if not artifact_storage.exists(path):
+        raise ResourceNotFoundError("ModelArtifact", path)
+    payload = artifact_storage.load(path)
+    return StreamingResponse(
+        BytesIO(payload),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="model-{model.id}.joblib"'},
+    )
+
+
+@router.delete("/{model_id}", response_model=StandardResponse[ModelResponse])
+async def delete_model(
+    model_id: str,
+    current_user: User = Depends(get_current_user),
+    service: ModelService = Depends(get_model_service),
+):
+    """Soft-delete a user's model and remove only its serialized model artifact."""
+    model = await service.get_model(model_id, str(current_user.id), is_admin=(current_user.role == "admin"))
+    if model.is_default or model.user_id != str(current_user.id):
+        raise ValidationError("Shared system models cannot be deleted.")
+    artifact_storage.delete(f"models/{model.id}/model.joblib")
+    model.status = "deleted"
+    await service.model_repo.update(model)
+    return StandardResponse(message="Model removed from the model zoo. Its dataset, training, and evaluation lineage remains recorded.", data=ModelResponse.model_validate(model))
 
 
 

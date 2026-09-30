@@ -24,28 +24,90 @@ import {
   Area
 } from 'recharts';
 import { MetricCard } from '../../components/common/MetricCard';
-import { evaluationApi, trainingApi } from '../../api';
+import { evaluationApi, trainingApi, modelsApi } from '../../api';
+import { Model } from '../../types';
 
 export const EvaluationPage: React.FC = () => {
   const { runId } = useParams<{ runId?: string }>();
   const [selectedRunId, setSelectedRunId] = useState<string>(runId || '');
   const [threshold, setThreshold] = useState<number>(0.5);
 
-  const { data: runs, isLoading: runsLoading } = useQuery({
+  // Fetch all training runs (user-trained)
+  const { data: runs } = useQuery({
     queryKey: ['trainingRuns-eval'],
     queryFn: trainingApi.listRuns,
-    enabled: !runId,
   });
+
+  // Fetch all models — includes both pretrained (is_default=true) and user-trained
+  const { data: allModels } = useQuery({
+    queryKey: ['all-models-eval'],
+    queryFn: modelsApi.list,
+  });
+
+  // Build a unified, ordered list of { label, runId } entries for the dropdown.
+  // Strategy:
+  //   - Pretrained models: use model.name. Their training_run_id points to the eval run.
+  //   - User-trained models: find the matching training run via model.training_run_id.
+  //   - Fallback: training runs with no matching model are shown with a generated label.
+  const dropdownOptions = useMemo(() => {
+    const options: { label: string; runId: string; badge: string }[] = [];
+    const usedRunIds = new Set<string>();
+
+    // Pretrained models first (is_default = true)
+    const pretrained = (allModels || []).filter((m: Model) => m.is_default);
+    for (const model of pretrained) {
+      const runId = model.training_run_id;
+      if (runId) {
+        options.push({
+          label: model.name,
+          runId,
+          badge: 'Pretrained',
+        });
+        usedRunIds.add(runId);
+      }
+    }
+
+    // User-trained models (is_default = false, has a training_run_id)
+    const userModels = (allModels || []).filter((m: Model) => !m.is_default && m.training_run_id);
+    for (const model of userModels) {
+      const runId = model.training_run_id!;
+      if (!usedRunIds.has(runId)) {
+        options.push({
+          label: model.name,
+          runId,
+          badge: model.model_type?.toUpperCase() || 'Custom',
+        });
+        usedRunIds.add(runId);
+      }
+    }
+
+    // Any training runs that don't yet have a matching model record
+    for (const run of runs || []) {
+      if (!usedRunIds.has(run.id)) {
+        options.push({
+          label: `Run ${run.id.slice(0, 8)} · ${run.model_type || run.model_id?.slice(0, 8) || 'unknown'}`,
+          runId: run.id,
+          badge: run.model_type?.toUpperCase() || 'Run',
+        });
+        usedRunIds.add(run.id);
+      }
+    }
+
+    return options;
+  }, [allModels, runs]);
+
+  // Auto-select first option when nothing is selected
+  useEffect(() => {
+    if (!selectedRunId && dropdownOptions.length > 0) {
+      setSelectedRunId(dropdownOptions[0].runId);
+    }
+  }, [dropdownOptions, selectedRunId]);
 
   const { data: evalContext, isLoading, isError } = useQuery({
     queryKey: ['evaluation-context', selectedRunId],
     queryFn: () => evaluationApi.getContext(selectedRunId),
     enabled: !!selectedRunId,
   });
-
-  useEffect(() => {
-    if (!selectedRunId && runs?.length) setSelectedRunId(runs[0].id);
-  }, [runs, selectedRunId]);
 
   const dynamicMetrics = useMemo(() => {
     if (!evalContext || !evalContext.y_true || !evalContext.y_prob) {
@@ -136,8 +198,8 @@ export const EvaluationPage: React.FC = () => {
     return (
       <div className="p-8 text-center text-slate-500">
         <Activity className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-        <h2 className="text-lg font-bold text-slate-700">{runsLoading ? 'Loading training runs…' : 'No Evaluation Runs Yet'}</h2>
-        {!runsLoading && <><p className="mb-4 mt-2 text-sm">Train a model on an uploaded dataset to see its held-out evaluation.</p><Link to="/training" className="btn-primary inline-flex items-center space-x-2"><span>Open training setup</span><ArrowRight className="w-4 h-4" /></Link></>}
+        <h2 className="text-lg font-bold text-slate-700">{dropdownOptions.length === 0 ? 'Loading models…' : 'No Evaluation Runs Yet'}</h2>
+        {dropdownOptions.length > 0 && (<><p className="mb-4 mt-2 text-sm">Train a model to see its held-out evaluation here.</p><Link to="/training" className="btn-primary inline-flex items-center space-x-2"><span>Open training setup</span><ArrowRight className="w-4 h-4" /></Link></>)}
       </div>
     );
   }
@@ -157,23 +219,41 @@ export const EvaluationPage: React.FC = () => {
             <BarChart3 className="w-4 h-4 text-brand-600" />
             <span>MODEL EVALUATION & DIAGNOSTICS</span>
           </div>
+          <h1 className="text-2xl font-bold text-slate-900">Performance Metrics</h1>
         </div>
-        <select value={selectedRunId} onChange={(event) => setSelectedRunId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-mono text-xs max-w-xs">
-          {(runs || []).map((run) => <option key={run.id} value={run.id}>{run.id.slice(0, 8)} · {run.model_type}</option>)}
-        </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link to="/evaluation/comparison" className="btn-secondary text-xs flex items-center gap-2">
+            <Layers className="w-4 h-4" /> Compare Models
+          </Link>
+          {/* Model selector — shows model names for pretrained + user-trained */}
+          <select
+            value={selectedRunId}
+            onChange={(e) => setSelectedRunId(e.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs max-w-[300px] focus:ring-brand-500 focus:border-brand-500"
+          >
+            {dropdownOptions.length === 0 && (
+              <option disabled value="">Loading models…</option>
+            )}
+            {dropdownOptions.map((opt) => (
+              <option key={opt.runId} value={opt.runId}>
+                {opt.label} [{opt.badge}]
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Context Bar */}
-      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-[11px] font-mono">
-        <div><span className="block text-slate-400 uppercase font-bold mb-1">Dataset</span><span className="text-slate-800 line-clamp-1">{evalContext.dataset_name}</span></div>
-        <div><span className="block text-slate-400 uppercase font-bold mb-1">Training Run</span><span className="text-slate-800">{evalContext.training_run_id.substring(0,8)}</span></div>
-        <div><span className="block text-slate-400 uppercase font-bold mb-1">Preprocessing</span><span className="text-slate-800">{evalContext.preprocessing_run_id?.substring(0,8) || 'N/A'}</span></div>
-        <div><span className="block text-slate-400 uppercase font-bold mb-1">Model</span><span className="text-slate-800 uppercase">{evalContext.model_type}</span></div>
-        <div><span className="block text-slate-400 uppercase font-bold mb-1">CML/QML</span><span className="text-slate-800">{evalContext.learning_type}</span></div>
-        <div><span className="block text-slate-400 uppercase font-bold mb-1">Test Set</span><span className="text-slate-800">{evalContext.sample_count} samples</span></div>
-        <div><span className="block text-slate-400 uppercase font-bold mb-1">Features</span><span className="text-slate-800">{evalContext.selected_feature_count} features</span></div>
-        <div><span className="block text-slate-400 uppercase font-bold mb-1">Backend</span><span className="text-slate-800">{evalContext.quantum?.backend_type || 'Sklearn'}</span></div>
-      </div>
+      {/* Pipeline Context Bar */}
+      <section className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
+        <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2"><Box className="w-4 h-4"/> Required Pipeline Context for this Evaluation</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 text-[11px] font-mono">
+          <div><span className="block text-slate-400 uppercase font-bold mb-1">Source Dataset</span><span className="text-slate-800 line-clamp-1" title={evalContext.dataset_name}>{evalContext.dataset_name}</span></div>
+          <div><span className="block text-slate-400 uppercase font-bold mb-1">Target Column</span><span className="text-slate-800 break-all">{evalContext.target_column || '—'}</span></div>
+          <div><span className="block text-slate-400 uppercase font-bold mb-1">Required Features</span><span className="text-slate-800">{evalContext.selected_feature_count} features</span></div>
+          <div><span className="block text-slate-400 uppercase font-bold mb-1">Preprocessing Node</span><span className="text-slate-800">{evalContext.preprocessing_run_id?.substring(0,8) || 'N/A'}</span></div>
+          <div><span className="block text-slate-400 uppercase font-bold mb-1">Model Architecture</span><span className="text-slate-800 uppercase">{evalContext.model_type} ({evalContext.learning_type})</span></div>
+        </div>
+      </section>
 
       {/* Core Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
@@ -312,6 +392,31 @@ export const EvaluationPage: React.FC = () => {
               <div className="flex justify-between text-xs"><span className="text-slate-600">Sensitivity</span><span className="font-mono font-bold">{gen.test?.sensitivity ? (gen.test.sensitivity * 100).toFixed(1) + '%' : 'N/A'}</span></div>
               <div className="flex justify-between text-xs"><span className="text-slate-600">Specificity</span><span className="font-mono font-bold">{gen.test?.specificity ? (gen.test.specificity * 100).toFixed(1) + '%' : 'N/A'}</span></div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Computational Metrics */}
+      <div className="card-scientific bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">COMPUTATIONAL METRICS</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Training Time</span>
+            <span className="text-xl font-mono font-bold text-slate-800">
+              {evalContext.computational?.training_time != null ? `${evalContext.computational.training_time.toFixed(2)} s` : 'N/A'}
+            </span>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Inference Time</span>
+            <span className="text-xl font-mono font-bold text-slate-800">
+              {evalContext.computational?.inference_time != null ? `${evalContext.computational.inference_time.toFixed(2)} ms` : 'N/A'}
+            </span>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Trainable Parameters</span>
+            <span className="text-xl font-mono font-bold text-slate-800">
+              {evalContext.computational?.trainable_parameters != null ? evalContext.computational.trainable_parameters.toLocaleString() : 'N/A'}
+            </span>
           </div>
         </div>
       </div>

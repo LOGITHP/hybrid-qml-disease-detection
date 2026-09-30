@@ -73,7 +73,7 @@ export const DatasetListPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Uploaded Datasets</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Upload CSV files, inspect their actual schemas and quality, and manage dataset versions.
+            Upload CSV files, inspect their actual schemas and quality, and manage dataset processing and features.
           </p>
         </div>
         <div className="flex items-center space-x-3">
@@ -106,7 +106,7 @@ export const DatasetListPage: React.FC = () => {
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3.5 px-6">Dataset Name</th>
-                  <th className="py-3.5 px-6">Version</th>
+                  <th className="py-3.5 px-6">Status / Features</th>
                   <th className="py-3.5 px-6">Rows</th>
                   <th className="py-3.5 px-6">Columns</th>
                   <th className="py-3.5 px-6">Uploaded file</th>
@@ -121,8 +121,17 @@ export const DatasetListPage: React.FC = () => {
                       <div className="font-semibold text-slate-900">{dataset.name}</div>
                       <div className="text-[11px] text-slate-400 line-clamp-1">{dataset.description || 'No description recorded.'}</div>
                     </td>
-                    <td className="py-4 px-6 font-mono text-[11px]">
-                      {latestVersion?.version_tag || '—'}
+                    <td className="py-4 px-6">
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center space-x-2 text-[10px]">
+                          <span className={`px-2 py-0.5 rounded-full ${latestVersion?.dataset_metadata?.processing_status?.preprocessed ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                            Preprocessed: {latestVersion?.dataset_metadata?.processing_status?.preprocessed ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium pl-1">
+                          {latestVersion?.dataset_metadata?.selected_feature_count ? `${latestVersion.dataset_metadata.selected_feature_count} features` : (latestVersion?.column_count ? `${latestVersion.column_count} features (raw)` : '—')}
+                        </div>
+                      </div>
                     </td>
                     <td className="py-4 px-6 font-semibold">
                       {latestVersion?.row_count ?? '—'}

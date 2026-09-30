@@ -73,3 +73,11 @@ async def test_auth_full_lifecycle(client: AsyncClient):
     )
     assert refresh_resp.status_code == 200
     assert "access_token" in refresh_resp.json()
+    assert refresh_resp.json()["refresh_token"] != refresh_token
+
+    # Access tokens cannot be used to mint new sessions.
+    invalid_refresh = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": access_token},
+    )
+    assert invalid_refresh.status_code == 401

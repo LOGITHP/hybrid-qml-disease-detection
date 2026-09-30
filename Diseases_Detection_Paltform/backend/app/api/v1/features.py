@@ -1,6 +1,7 @@
 """Feature selection and ranking API endpoints - Single Source of Truth for Models."""
 
 from fastapi import APIRouter, Depends, status
+from typing import List, Dict, Any
 from app.core.dependencies import get_current_user, get_dataset_service
 from app.database.models.user import User
 from app.schemas.common import StandardResponse
@@ -41,4 +42,19 @@ async def select_features(
     return StandardResponse(
         message="Features ranked and canonical selection recorded.",
         data=FeatureSelectionResponse.model_validate(fs_run),
+    )
+
+@router.get("/runs", response_model=StandardResponse[List[Dict[str, Any]]], status_code=status.HTTP_200_OK)
+async def list_feature_selection_runs(
+    dataset_version_id: str | None = None,
+    current_user: User = Depends(get_current_user)
+):
+    from app.database.models.feature_selection import FeatureSelectionRun
+    query = {"user_id": str(current_user.id)}
+    if dataset_version_id:
+        query["dataset_version_id"] = dataset_version_id
+    runs = await FeatureSelectionRun.find(query).to_list()
+    return StandardResponse(
+        message="Fetched feature selection runs.",
+        data=[r.model_dump(mode="json") for r in runs]
     )

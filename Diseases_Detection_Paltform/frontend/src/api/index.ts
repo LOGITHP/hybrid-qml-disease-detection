@@ -155,6 +155,12 @@ export const featuresApi = {
     const res = await apiClient.post<{ data: FeatureSelectionRun }>('/features/select', payload);
     return res.data.data;
   },
+  listRuns: async (datasetVersionId?: string): Promise<any[]> => {
+    const res = await apiClient.get<{ data: any[] }>('/features/runs', {
+      params: datasetVersionId ? { dataset_version_id: datasetVersionId } : undefined
+    });
+    return res.data.data;
+  },
 };
 
 export const modelsApi = {
@@ -171,6 +177,15 @@ export const modelsApi = {
   get: async (id: string): Promise<Model> => {
     const res = await apiClient.get<Model>(`/models/${id}`);
     return res.data;
+  },
+
+  downloadArtifact: async (id: string): Promise<Blob> => {
+    const res = await apiClient.get(`/models/${id}/artifact`, { responseType: 'blob' });
+    return res.data as Blob;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/models/${id}`);
   },
 
   compare: async (modelIds: string[]): Promise<ComprehensiveComparisonResponse> => {
@@ -235,6 +250,7 @@ export const quantumApi = {
     );
     return res.data.data;
   },
+
 };
 
 export const experimentsApi = {

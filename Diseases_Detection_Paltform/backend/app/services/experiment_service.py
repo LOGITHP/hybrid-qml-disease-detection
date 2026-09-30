@@ -72,21 +72,26 @@ class ExperimentService:
         self, user_id: str, experiment_id: str, training_run_ids: List[str]
     ) -> Dict[str, Any]:
         """Aggregate CML and QML training runs into an end-to-end comparative benchmark and Markdown report."""
+        experiment = await self.experiment_repo.get_by_id(experiment_id)
+        if not experiment or experiment.user_id != user_id:
+            raise ResourceNotFoundError("Experiment", experiment_id)
         runs_data = []
         for run_id in training_run_ids:
             run = await self.training_repo.get_by_id(run_id)
-            if run and run.metrics:
-                model = await self.model_repo.get_by_id(run.model_id)
-                model_name = model.name if model else "Unknown"
-                model_type = model.model_type if model else "unknown"
-                runs_data.append(
-                    {
-                        "run_id": str(run.id),
-                        "model_name": model_name,
-                        "model_type": model_type,
-                        "metrics": run.metrics,
-                    }
-                )
+            if not run or run.user_id != user_id or not run.metrics:
+                raise ResourceNotFoundError("TrainingRun", run_id)
+            model = await self.model_repo.get_by_id(run.model_id)
+            if not model or (model.user_id != user_id and not model.is_default):
+                raise ResourceNotFoundError("Model", run.model_id)
+            runs_data.append({
+                "run_id": str(run.id),
+                "model_name": model.name,
+                "model_type": model.model_type,
+                "metrics": run.metrics,
+            })
+        if len(runs_data) < 2:
+            from app.core.exceptions import ValidationError
+            raise ValidationError("Select at least two completed, owned training runs to create a comparison report.")
 
         # Build Markdown summary
         md_lines = [
@@ -115,9 +120,8 @@ class ExperimentService:
                 "> **Disclaimer:** Risk stratifications and comparative metrics reflect computational validation on test sets. "
                 "The platform assists clinical screening workflows and does NOT generate definitive diagnoses.",
                 "",
-                "## Quantum Advantage Observations",
-                "The Variational Quantum Classifier (VQC) with parameterized AngleEncoding and entangling layers "
-                "demonstrates competitive performance on non-linearly separable biomarker subspaces.",
+                "## Comparison Notes",
+                "Values above are the measured metrics saved for each selected held-out evaluation. This report does not rank models or claim an advantage.",
             ]
         )
 

@@ -70,6 +70,10 @@ class ModelComparisonEntry(BaseModel):
     roc_auc: Optional[float] = None
     confusion_matrix: ConfusionMatrix
     training_duration_sec: Optional[float] = None
+    inference_latency_ms: Optional[float] = None
+    parameter_count: Optional[int] = None
+    qubit_count: Optional[int] = None
+    circuit_depth: Optional[int] = None
     quantum_details: Optional[Dict[str, Any]] = None
 
 
@@ -79,14 +83,14 @@ class MetricComparisonRow(BaseModel):
     display_name: str
     higher_is_better: bool = True
     values: Dict[str, Any]  # model_name -> value
-    best_model: str
+    best_model: Optional[str] = None
 
 
 class ComprehensiveComparisonResponse(BaseModel):
     """Comprehensive comparative evaluation across all metrics for two or more models."""
     models_compared: List[ModelComparisonEntry]
     comparison_matrix: List[MetricComparisonRow]
-    category_winners: Dict[str, str]  # e.g., "Highest Accuracy": "Model A"
+    category_winners: Dict[str, str] = Field(default_factory=dict)
     cml_vs_qml_insights: Dict[str, Any]
     markdown_table: str
     executive_summary: str

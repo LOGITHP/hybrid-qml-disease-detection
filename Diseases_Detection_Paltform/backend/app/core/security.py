@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+import secrets
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
@@ -56,6 +57,7 @@ def create_refresh_token(user_id: str, additional_claims: Optional[Dict[str, Any
     payload: Dict[str, Any] = {
         "sub": str(user_id),
         "type": "refresh",
+        "jti": secrets.token_urlsafe(16),
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp()),
     }

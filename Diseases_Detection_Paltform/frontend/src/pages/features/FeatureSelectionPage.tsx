@@ -62,6 +62,8 @@ export const FeatureSelectionPage: React.FC = () => {
         sessionStorage.setItem('activeDatasetVersionId', activeVersion.id);
         sessionStorage.setItem('activeFeatureSelectionRunId', data.id);
         sessionStorage.setItem('activeSelectedFeatures', JSON.stringify(data.selected_features));
+        // Store ALL available feature columns (excl. target) — not just the chosen subset
+        sessionStorage.setItem('activeAllFeatures', JSON.stringify(data.all_features ?? availableFeatureColumns));
         sessionStorage.setItem('activeTargetColumn', targetColumn);
       }
     },

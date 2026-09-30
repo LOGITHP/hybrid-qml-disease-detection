@@ -8,7 +8,10 @@ class DatasetRepository:
         return await Dataset.get(dataset_id)
         
     async def list_by_user(self, user_id: str) -> List[Dataset]:
-        return await Dataset.find(Dataset.user_id == user_id).to_list()
+        # Return both the user's own datasets AND system-seeded default datasets
+        return await Dataset.find(
+            In(Dataset.user_id, [user_id, "system"])
+        ).to_list()
         
     async def create(self, dataset: Dataset) -> Dataset:
         return await dataset.insert()

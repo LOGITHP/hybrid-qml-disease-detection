@@ -6,20 +6,21 @@ import {
   Table,
   ShieldCheck,
   History,
-  Sliders,
   ArrowRight,
   AlertTriangle,
   CheckCircle2,
-  FileText,
+  BarChart,
 } from 'lucide-react';
-import { datasetsApi } from '../../api';
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { DatasetVisualizations } from '../../components/datasets/DatasetVisualizations';
+import { datasetsApi, preprocessingApi, featuresApi } from '../../api';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 import { ErrorState } from '../../components/common/ErrorState';
 
 export const DatasetDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'overview' | 'schema' | 'quality' | 'versions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'schema' | 'quality' | 'visualizations' | 'versions'>('overview');
 
   const { data: dataset, isLoading, error, refetch } = useQuery({
     queryKey: ['dataset', id],
@@ -39,6 +40,28 @@ export const DatasetDetailPage: React.FC = () => {
         : Promise.reject('No version'),
     enabled: !!id && !!latestVersion,
   });
+
+  const { data: preprocessingArtifacts } = useQuery({
+    queryKey: ['preprocessingArtifacts', latestVersion?.id],
+    queryFn: () => latestVersion ? preprocessingApi.listArtifacts(latestVersion.id) : Promise.reject('No version'),
+    enabled: !!latestVersion,
+  });
+
+  const { data: featureSelectionRuns } = useQuery({
+    queryKey: ['featureSelectionRuns', latestVersion?.id],
+    queryFn: () => latestVersion ? featuresApi.listRuns(latestVersion.id) : Promise.reject('No version'),
+    enabled: !!latestVersion,
+  });
+
+  const processingStatus = latestVersion?.dataset_metadata?.processing_status || {};
+  const isPreprocessed = processingStatus.preprocessed || (preprocessingArtifacts && preprocessingArtifacts.length > 0);
+  const isFeatureSelected = processingStatus.feature_selection || (featureSelectionRuns && featureSelectionRuns.length > 0);
+  const latestFS = featureSelectionRuns?.[0];
+  // all_features = every column available in the dataset (excl. target) — stored on FS run or version metadata
+  const allFeatures: string[] = latestFS?.all_features || latestVersion?.dataset_metadata?.all_features || latestVersion?.dataset_metadata?.columns || [];
+  // selected_features = the active subset the user picked
+  const selectedFeatures: string[] = latestFS?.selected_features || latestVersion?.dataset_metadata?.selected_features || [];
+
 
   if (isLoading) return <LoadingSkeleton rows={4} />;
   if (error || !dataset) {
@@ -71,14 +94,6 @@ export const DatasetDetailPage: React.FC = () => {
           <p className="text-xs text-slate-500">{dataset.description || 'No description recorded.'}</p>
         </div>
 
-        <Link
-          to="/preprocessing"
-          className="btn-primary text-xs flex items-center space-x-2 self-start sm:self-auto"
-        >
-          <Sliders className="w-3.5 h-3.5 mr-1" />
-          <span>Launch AI Preprocessing</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
       </div>
 
       {/* Navigation Tabs */}
@@ -88,6 +103,7 @@ export const DatasetDetailPage: React.FC = () => {
             { id: 'overview', label: 'Overview', icon: Database },
             { id: 'schema', label: 'Column Schema', icon: Table },
             { id: 'quality', label: 'Data Quality & Target', icon: ShieldCheck },
+            { id: 'visualizations', label: 'Visualizations', icon: BarChart },
             { id: 'versions', label: 'Version History', icon: History },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -113,6 +129,30 @@ export const DatasetDetailPage: React.FC = () => {
       {/* Tab 1: Overview */}
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3 md:col-span-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Dataset processing status</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
+              {[['Uploaded', true], ['Preprocessed', !!isPreprocessed], ['Feature selection', !!isFeatureSelected]].map(([label, done]) => <div key={String(label)} className={`flex items-center gap-2 rounded-lg border p-3 ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-500'}`}><CheckCircle2 className="h-4 w-4" /><span>{label}: <b>{done ? 'Done' : 'Not done'}</b></span></div>)}
+            </div>
+            {isFeatureSelected && (
+              <div className="space-y-2">
+                <p className="text-xs text-slate-600">
+                  <b>All features in dataset:</b> {allFeatures.length || latestVersion?.dataset_metadata?.column_count || 0} columns
+                  {' '}<span className="text-slate-400">·</span>{' '}
+                  <b>Active selection:</b> {selectedFeatures.length} feature{selectedFeatures.length !== 1 ? 's' : ''}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {allFeatures.map((f) => (
+                    <span key={f} className={`rounded px-2 py-0.5 font-mono text-[10px] border ${
+                      selectedFeatures.includes(f)
+                        ? 'bg-brand-50 border-brand-200 text-brand-800 font-bold'
+                        : 'bg-slate-50 border-slate-200 text-slate-400'
+                    }`}>{f}{selectedFeatures.includes(f) ? ' ✓' : ''}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="md:col-span-2 space-y-4">
             <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -143,20 +183,50 @@ export const DatasetDetailPage: React.FC = () => {
                 {analysis?.file_metadata?.file_size_bytes != null && ` · ${(analysis.file_metadata.file_size_bytes / 1024).toFixed(1)} KB`}
               </p>
             </div>
-          </div>
 
-          <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Next Action</h3>
-            <p className="text-xs text-slate-500">
-              Choose preprocessing steps for this dataset, review the generated plan, and save the configuration before training.
-            </p>
-            <Link
-              to="/preprocessing"
-              className="w-full btn-primary text-xs py-2 flex items-center justify-center space-x-1"
-            >
-              <span>Start Preprocessing Wizard</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+
+            {preprocessingArtifacts && preprocessingArtifacts.length > 0 && (
+              <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Preprocessed Datasets
+                </h3>
+                <div className="space-y-3">
+                  {preprocessingArtifacts.map((artifact: any) => (
+                    <div key={artifact.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border border-slate-200 rounded-lg bg-slate-50 text-xs">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-slate-800">Preprocessed Run: {artifact.id.slice(0, 8)}</div>
+                        <div className="text-[11px] text-slate-500">Rows: {artifact.final_row_count} | Columns: {artifact.final_column_count}</div>
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono mt-2 sm:mt-0">
+                        {new Date(artifact.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {featureSelectionRuns && featureSelectionRuns.length > 0 && (
+              <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Feature Selection Runs
+                </h3>
+                <div className="space-y-3">
+                  {featureSelectionRuns.map((run: any) => (
+                    <div key={run.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border border-slate-200 rounded-lg bg-slate-50 text-xs">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-slate-800">Features Selected: {run.feature_count}</div>
+                        <div className="text-[11px] text-slate-500 line-clamp-1">Method: {run.ranking_method} | Target: {run.target_column}</div>
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono mt-2 sm:mt-0">
+                        {new Date(run.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}
@@ -277,7 +347,7 @@ export const DatasetDetailPage: React.FC = () => {
               ) : (
                 <div className="text-slate-500 italic">No class distribution available for target.</div>
               )}
-              
+
               {analysis?.class_distribution && Object.keys(analysis.class_distribution).length > 0 && (
                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start space-x-2 text-[11px] text-amber-800">
                   <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
@@ -291,7 +361,12 @@ export const DatasetDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 4: Versions */}
+      {/* Tab 4: Visualizations */}
+      {activeTab === 'visualizations' && (
+        <DatasetVisualizations analysis={analysis as any} />
+      )}
+
+      {/* Tab 5: Versions */}
       {activeTab === 'versions' && (
         <div className="card-scientific bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">

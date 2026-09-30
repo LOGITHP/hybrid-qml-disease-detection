@@ -7,14 +7,6 @@ import { Dataset, DatasetVersion } from '../../types';
 import { MedicalNotice } from '../../components/common/MedicalNotice';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 
-const sameFeatureSet = (left: string[], right: string[]) =>
-  left.length === right.length && left.every((feature, index) => feature === right[index]);
-
-const latestVersion = (datasets: Dataset[]): { dataset: Dataset; version: DatasetVersion } | undefined => {
-  const versions = datasets.flatMap((dataset) => (dataset.versions || []).map((version) => ({ dataset, version })));
-  return versions.sort((a, b) => Date.parse(b.version.created_at) - Date.parse(a.version.created_at))[0];
-};
-
 export const PredictionPage: React.FC = () => {
   const navigate = useNavigate();
   const [selectedModelId, setSelectedModelId] = useState(() => new URLSearchParams(window.location.search).get('model_id') || '');
@@ -26,52 +18,26 @@ export const PredictionPage: React.FC = () => {
   const { data: userModels, isLoading: modelsLoading } = useQuery({ queryKey: ['userModels'], queryFn: modelsApi.list });
   const mergedModels = useMemo(() => [...(defaultModels || []), ...(userModels || [])], [defaultModels, userModels]);
 
-  const storedVersionId = sessionStorage.getItem('activeDatasetVersionId');
+  const trainedModels = mergedModels.filter((model) => model.status === 'trained' || model.configuration?.pretrained)
+    .sort((left, right) => Date.parse(right.created_at || '2000-01-01') - Date.parse(left.created_at || '2000-01-01'));
+  const activeModel = trainedModels.find((model) => model.id === selectedModelId);
+  const isPretrained = !!activeModel?.configuration?.pretrained;
   const activeUpload = useMemo(() => {
-    const selected = datasets?.flatMap((dataset) => (dataset.versions || []).map((version) => ({ dataset, version })))
-      .find(({ version }) => version.id === storedVersionId);
-    return selected || (datasets ? latestVersion(datasets) : undefined);
-  }, [datasets, storedVersionId]);
-
-  const storedFeatures = (() => {
-    try { return JSON.parse(sessionStorage.getItem('activeSelectedFeatures') || '[]') as string[]; }
-    catch { return []; }
-  })();
-  const activeTarget = sessionStorage.getItem('activeTargetColumn') || '';
-  const pipelineMatchesUpload = !!activeUpload && storedVersionId === activeUpload.version.id;
-  const expectedFeatures = pipelineMatchesUpload ? storedFeatures : [];
-  const expectedTarget = pipelineMatchesUpload ? activeTarget : '';
+    const associatedVersionId = activeModel?.configuration?.dataset_version_id;
+    if (!associatedVersionId || !datasets) return undefined;
+    return datasets.flatMap((dataset) => (dataset.versions || []).map((version) => ({ dataset, version })))
+      .find(({ version }) => version.id === associatedVersionId);
+  }, [activeModel?.id, activeModel?.configuration?.dataset_version_id, datasets]);
+  const features = (activeModel?.configuration?.selected_features || []) as string[];
+  const targetColumn = String(activeModel?.configuration?.target_column || '');
 
   const { data: analysis, isLoading: analysisLoading } = useQuery({
-    queryKey: ['datasetAnalysis', activeUpload?.dataset.id, activeUpload?.version.id, expectedTarget],
+    queryKey: ['datasetAnalysis', activeUpload?.dataset.id, activeUpload?.version.id, targetColumn],
     queryFn: () => activeUpload
-      ? datasetsApi.analyzeVersion(activeUpload.dataset.id, activeUpload.version.id, expectedTarget || undefined)
+      ? datasetsApi.analyzeVersion(activeUpload.dataset.id, activeUpload.version.id, targetColumn || undefined)
       : Promise.reject(new Error('No uploaded dataset version is available.')),
     enabled: !!activeUpload,
   });
-
-  const trainedModels = mergedModels.filter((model) => {
-    const config = model.configuration || {};
-    if (config.pretrained) return true;
-    if (model.status !== 'trained' || !activeUpload || config.dataset_version_id !== activeUpload.version.id) return false;
-    if (expectedTarget && config.target_column !== expectedTarget) return false;
-    const featureNames = Array.isArray(config.selected_features) ? config.selected_features as string[] : [];
-    return !expectedFeatures.length || sameFeatureSet(featureNames, expectedFeatures);
-  }).sort((left, right) => {
-    // Show user trained models first, then default models
-    if (left.configuration?.pretrained && !right.configuration?.pretrained) return 1;
-    if (!left.configuration?.pretrained && right.configuration?.pretrained) return -1;
-    return Date.parse(right.created_at || '2000-01-01') - Date.parse(left.created_at || '2000-01-01');
-  });
-  const activeModel = trainedModels.find((model) => model.id === selectedModelId) || trainedModels[0];
-  const features = (activeModel?.configuration?.selected_features || []) as string[];
-  const targetColumn = String(activeModel?.configuration?.target_column || analysis?.target_column || expectedTarget || '');
-
-  useEffect(() => {
-    if (trainedModels.length && !trainedModels.some((model) => model.id === selectedModelId)) {
-      setSelectedModelId(trainedModels[0].id);
-    }
-  }, [trainedModels, selectedModelId]);
 
   useEffect(() => {
     setInputFeatures((current) => {
@@ -83,7 +49,8 @@ export const PredictionPage: React.FC = () => {
 
   const predictMutation = useMutation({
     mutationFn: async () => {
-      if (!activeModel) throw new Error('Train a model on the active upload before generating predictions.');
+      if (!activeModel) throw new Error('Select a trained model before generating predictions.');
+      if (!activeUpload && !isPretrained) throw new Error('Dataset unavailable — prediction and feedback require the dataset version associated with this model.');
       const values: Record<string, string | number | null> = {};
       features.forEach((feature) => {
         const value = inputFeatures[feature];
@@ -96,6 +63,9 @@ export const PredictionPage: React.FC = () => {
       sessionStorage.setItem('latest_prediction_input', JSON.stringify(inputFeatures));
       sessionStorage.setItem('latest_prediction_model_name', activeModel?.name || 'Trained model');
       sessionStorage.setItem('latest_prediction_model_type', activeModel?.model_type || '');
+      sessionStorage.setItem('latest_prediction_model_version', String(activeModel?.configuration?.model_version || activeModel?.id || 'Unknown'));
+      sessionStorage.setItem('latest_prediction_dataset_name', activeUpload?.dataset.name || (isPretrained ? 'Pretrained default dataset' : 'Dataset unavailable'));
+      sessionStorage.setItem('latest_prediction_dataset_version', activeUpload?.version.version_tag || (isPretrained ? 'Pretrained' : 'Unknown'));
       navigate('/predictions/latest');
     },
   });
@@ -117,22 +87,27 @@ export const PredictionPage: React.FC = () => {
           <section className="card-scientific space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Active uploaded dataset</h2>
             {activeUpload ? <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Model</span><span className="font-semibold">{activeModel?.name || 'Select a model below'}</span></div>
               <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Dataset</span><span className="font-semibold">{activeUpload.dataset.name}</span></div>
               <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Version</span><span className="font-mono font-semibold">{activeUpload.version.version_tag}</span></div>
               <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Rows · columns</span><span className="font-semibold">{activeUpload.version.row_count} · {activeUpload.version.column_count}</span></div>
               <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Target</span><span className="font-mono font-semibold">{targetColumn || '—'}</span></div>
-            </div> : <p className="text-xs text-slate-600">Upload a CSV dataset and complete preprocessing, feature selection, and training first. <Link to="/datasets" className="font-semibold text-brand-800 underline">Open datasets</Link></p>}
+            </div> : isPretrained ? <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Model</span><span className="font-semibold">{activeModel?.name}</span></div>
+              <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Dataset</span><span className="font-mono font-semibold text-[10px] break-all">C:\\Users\\logit\\Downloads\\hybrid-qml-disease-detection\\Experimental_ML\\Lung_Cancer\\data\\raw</span></div>
+            </div> : <p className="text-xs text-amber-900">{activeModel ? 'Dataset unavailable — prediction/feedback cannot be processed because the dataset associated with this model is unavailable.' : 'Select a trained model to resolve its associated dataset version.'} <Link to="/datasets" className="font-semibold text-brand-800 underline">Open datasets</Link></p>}
           </section>
 
           <section className="card-scientific space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <label className="block space-y-1 text-xs font-bold uppercase tracking-wider text-slate-700">
-              Trained model
-              <select value={activeModel?.id || ''} onChange={(event) => setSelectedModelId(event.target.value)} disabled={!trainedModels.length} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal">
+              Select trained model
+              <select value={selectedModelId} onChange={(event) => setSelectedModelId(event.target.value)} disabled={!trainedModels.length} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal">
+                <option value="">Choose a model</option>
                 {trainedModels.map((model) => <option key={model.id} value={model.id}>{model.name} · {model.model_type.toUpperCase()}</option>)}
               </select>
             </label>
-            {!trainedModels.length && activeUpload && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              No trained model matches this upload and its current feature selection. Complete the pipeline for this version first.
+            {!trainedModels.length && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              No models are available. Complete the pipeline and train a model first.
               <div className="mt-2 flex gap-3 font-semibold"><Link to="/preprocessing" className="underline">Preprocessing</Link><Link to="/features" className="underline">Feature selection</Link><Link to="/training" className="underline">Training</Link></div>
             </div>}
             {activeModel && <p className="text-[11px] text-slate-500">Saved input columns: <span className="font-mono">{features.join(', ')}</span></p>}
@@ -166,7 +141,7 @@ export const PredictionPage: React.FC = () => {
             <div className="flex items-center gap-2 text-[11px] text-slate-500"><Database className="h-3.5 w-3.5" /><span>{activeUpload?.dataset.name || 'No active upload'}</span></div>
             <label className="block space-y-2 text-xs"><span className="flex justify-between font-semibold text-slate-700"><span>Decision threshold</span><span>{(threshold * 100).toFixed(0)}%</span></span><input type="range" min="0" max="1" step="0.01" value={threshold} onChange={(event) => setThreshold(Number(event.target.value))} className="w-full accent-brand-800" /><span className="block text-[11px] font-normal text-slate-500">Changes the classification cutoff only.</span></label>
             {predictMutation.isError && <p className="text-xs text-red-700">{predictMutation.error instanceof Error ? predictMutation.error.message : 'Prediction failed.'}</p>}
-            <button type="button" onClick={() => predictMutation.mutate()} disabled={predictMutation.isPending || !activeModel || analysisLoading} className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-xs shadow-md"><Activity className="h-4 w-4" /><span>{predictMutation.isPending ? 'Computing prediction…' : 'Generate prediction'}</span></button>
+            <button type="button" onClick={() => predictMutation.mutate()} disabled={predictMutation.isPending || !activeModel || (!activeUpload && !isPretrained) || analysisLoading} className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-xs shadow-md"><Activity className="h-4 w-4" /><span>{predictMutation.isPending ? 'Computing prediction…' : 'Generate prediction'}</span></button>
           </section>
           <MedicalNotice />
         </aside>

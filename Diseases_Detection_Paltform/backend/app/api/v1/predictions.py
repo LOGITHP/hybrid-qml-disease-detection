@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends
 from app.core.dependencies import get_current_user, get_model_service
 from app.core.exceptions import ResourceNotFoundError, ValidationError
 from app.database.models.user import User
+from app.database.models.dataset import Dataset, DatasetVersion
+from app.database.models.prediction import Prediction
 from app.schemas.prediction import PredictionRequest, PredictionResponse, RiskStratification, SinglePredictionResult
 from app.services.artifact_service import artifact_storage
 from app.services.model_service import ModelService
@@ -33,6 +35,15 @@ async def generate_prediction(
     )
     if model_obj.status != "trained":
         raise ValidationError("Choose a model that has been trained on an uploaded dataset.")
+
+    model_config = model_obj.configuration or {}
+    dataset_version_id = model_config.get("dataset_version_id") or model_obj.dataset_version_id
+    dataset_id = model_config.get("dataset_id") or model_obj.dataset_id
+    version = await DatasetVersion.get(dataset_version_id) if dataset_version_id else None
+    dataset_id = dataset_id or (str(version.dataset_id) if version else None)
+    dataset = await Dataset.get(dataset_id) if dataset_id else None
+    if not version or not dataset or dataset.user_id != str(current_user.id) or version.user_id != str(current_user.id):
+        raise ValidationError("Dataset unavailable — prediction/feedback cannot be processed because the dataset associated with this model is unavailable.")
 
     artifact_path = f"models/{model_obj.id}/model.joblib"
     if not artifact_storage.exists(artifact_path):
@@ -57,7 +68,10 @@ async def generate_prediction(
             raise ValidationError(
                 f"Input contains columns this model was not trained to use: {', '.join(unexpected_features)}."
             )
-        
+        missing_features = sorted(set(selected_features) - set(item.keys()))
+        if missing_features:
+            raise ValidationError(f"Provide a value (or explicit null) for each required model feature: {', '.join(missing_features)}.")
+
         # Pad with NaNs for any original feature not in selected_features so preprocessor doesn't crash
         raw_features = {}
         for feature in original_features:
@@ -65,27 +79,21 @@ async def generate_prediction(
                 raw_features[feature] = item.get(feature)
             else:
                 raw_features[feature] = np.nan
-                
+
         # If original_features wasn't saved, fallback to just selected_features
         if not original_features:
              raw_features = {feature: item.get(feature) for feature in selected_features}
-             
+
         raw_frame = pd.DataFrame([raw_features]).replace({None: np.nan})
         try:
-            print("raw_features dict:", raw_features)
-            print("raw_frame dtypes:", raw_frame.dtypes)
             x_model = preprocessor.transform(raw_frame)
             order_indices = bundle.get("preprocessor_feature_order_indices")
             if order_indices is not None:
                 x_model_sliced = x_model[:, order_indices]
             else:
                 x_model_sliced = x_model
-            print("encoded_feature_names:", bundle.get("encoded_feature_names"))
-            print("order_indices:", order_indices)
-            print("x_model_sliced:", x_model_sliced)
             probability = float(_positive_class_probabilities(model, x_model_sliced)[0])
         except Exception as exc:
-            print(f"Exception: {exc}")
             raise ValidationError(f"Input values could not be transformed by this model's saved preprocessing: {exc}") from exc
 
         predicted_class = int(probability >= threshold)
@@ -95,7 +103,22 @@ async def generate_prediction(
             risk_level = "MEDIUM"
         else:
             risk_level = "HIGH"
+        saved_prediction = await Prediction(
+            model_id=str(model_obj.id),
+            user_id=str(current_user.id),
+            dataset_id=str(dataset.id),
+            dataset_version_id=str(version.id),
+            preprocessing_run_id=bundle.get("preprocessing_run_id"),
+            feature_selection_run_id=bundle.get("feature_selection_run_id"),
+            input_data={feature: item.get(feature) for feature in selected_features},
+            prediction_result=predicted_class,
+            probability=round(probability, 4),
+            risk_score=round(probability, 4),
+            decision_threshold=threshold,
+            explanation_json={"input_features_used": selected_features},
+        ).insert()
         results.append(SinglePredictionResult(
+            prediction_id=str(saved_prediction.id),
             predicted_class=predicted_class,
             predicted_label="POSITIVE" if predicted_class else "NEGATIVE",
             probability=round(probability, 4),
@@ -106,6 +129,9 @@ async def generate_prediction(
 
     return PredictionResponse(
         model_id=str(model_obj.id),
+        model_version=str(model_config.get("model_version", model_obj.id)),
+        dataset_id=str(dataset.id),
+        dataset_version_id=str(version.id),
         preprocessing_run_id=bundle.get("preprocessing_run_id"),
         feature_selection_run_id=bundle.get("feature_selection_run_id"),
         decision_threshold_applied=threshold,

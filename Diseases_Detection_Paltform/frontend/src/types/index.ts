@@ -37,6 +37,11 @@ export interface DatasetVersion {
     columns: string[];
     dtypes: Record<string, string>;
     filename: string;
+    all_features?: string[];
+    column_count?: number;
+    processing_status?: Record<string, boolean>;
+    selected_features?: string[];
+    selected_feature_count?: number;
   };
   created_at: string;
 }
@@ -118,6 +123,7 @@ export interface FeatureSelectionRun {
   target_column?: string;
   feature_count: number;
   selected_features: string[];
+  all_features?: string[];  // Complete list of available feature columns (excl. target)
   ranking_scores: Record<string, number>;
   created_at: string;
 }
@@ -131,6 +137,11 @@ export interface Model {
   is_default: boolean;
   status?: string;
   configuration?: Record<string, any>;
+  training_run_id?: string | null;
+  dataset_id?: string | null;
+  dataset_version_id?: string | null;
+  preprocessing_run_id?: string | null;
+  feature_selection_run_id?: string | null;
   is_active: boolean;
   created_at: string;
   versions?: ModelVersion[];
@@ -191,7 +202,7 @@ export interface TrainingRun {
 export interface QuantumDevice {
   device_id: string;
   provider: string;
-  device_type: 'simulator' | 'noisy_simulator' | 'hardware';
+  device_type: 'simulator' | 'noisy_simulator';
   qubits: number;
   shots_supported: number[];
   status: 'ONLINE' | 'OFFLINE' | 'BUSY';
@@ -218,6 +229,7 @@ export interface RiskStratification {
 }
 
 export interface SinglePredictionResult {
+  prediction_id?: string | null;
   predicted_class: number;
   predicted_label: string;
   probability?: number | null;
@@ -228,6 +240,8 @@ export interface SinglePredictionResult {
 
 export interface PredictionResponse {
   model_id: string;
+  dataset_id?: string | null;
+  dataset_version_id?: string | null;
   preprocessing_run_id?: string | null;
   feature_selection_run_id?: string | null;
   decision_threshold_applied: number;
@@ -240,7 +254,7 @@ export interface MetricComparisonRow {
   display_name: string;
   higher_is_better: boolean;
   values: Record<string, number | null>;
-  best_model: string;
+  best_model?: string | null;
 }
 
 export interface ModelComparisonEntry {
@@ -313,6 +327,7 @@ export interface Artifact {
 export interface SystemHealth {
   status: string;
   version: string;
+  service?: string;
   database: 'healthy' | 'unhealthy';
   redis: 'healthy' | 'unhealthy';
   llm_service: 'healthy' | 'unhealthy';

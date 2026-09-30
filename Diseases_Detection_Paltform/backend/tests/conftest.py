@@ -49,3 +49,21 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest_asyncio.fixture
+async def test_user_token(client: AsyncClient) -> str:
+    """Create a fresh user and return a bearer token for API workflow tests."""
+    email = "preprocessing-workflow@research.org"
+    password = "StrongPassword123!"
+    registered = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": password},
+    )
+    assert registered.status_code == 201
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert login.status_code == 200
+    return login.json()["access_token"]

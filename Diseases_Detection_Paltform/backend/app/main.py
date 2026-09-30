@@ -31,9 +31,16 @@ async def lifespan(app: FastAPI):
     
     await init_beanie(database=db, document_models=document_models)
     logger.info("MongoDB and Beanie ODM initialized successfully.")
-    
+
+    # Seed bundled default datasets (idempotent — safe to call every startup)
+    try:
+        from app.core.dataset_seeder import seed_default_datasets
+        await seed_default_datasets()
+    except Exception as seed_err:
+        logger.warning(f"Default dataset seeding failed (non-fatal): {seed_err}")
+
     yield
-    
+
     logger.info("Shutting down application and closing MongoDB client.")
     client.close()
 
