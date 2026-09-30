@@ -1,6 +1,39 @@
 # Hybrid QML Disease Detection Platform
+A hybrid quantum-classical machine learning platform for early disease detection from medical datasets. The system uses AI-driven data preprocessing, classical ML models such as SVM, and Variational Quantum Classifiers (VQC) to analyze medical data and improve disease prediction. It supports quantum simulation, noise-aware evaluation , providing model comparison and interpretable results for healthcare applications.
 
+# Future Scope
+Larger Medical Datasets: Train on larger and more diverse datasets for better generalization.
+Medical Image Processing: Integrate CNN-based image analysis for X-rays, CT scans, MRI scans, and other medical images.
+Hybrid Quantum ML: Further develop SVM + VQC models and evaluate them on increasingly capable quantum hardware.
+Real Quantum Hardware: Expand testing from simulators to real quantum processors.
+Multi-Disease Detection: Extend the system to detect and predict multiple diseases.
+Explainable AI: Add XAI techniques to make predictions more transparent and interpretable.
+Personalized Prediction: Develop patient-specific risk assessment and early-warning systems.
+Clinical Integration: Future integration with healthcare systems to support clinicians in decision-making.
 This repository contains a web application for uploading tabular datasets, inspecting their schema, preparing them for binary classification, training or evaluating models, and reviewing predictions. The checked-in research example studies the Survey Lung Cancer Dataset. The application is a research prototype; its outputs are not medical diagnoses or clinically validated risk estimates.
+
+## Checked-in Experimental_ML checkpoints and results
+
+The platform discovers runnable checkpoints from `Experimental_ML/Lung_Cancer` and associates them with the source result files. Each row below is the recorded holdout result for **450 test rows**. Percentages are rounded to one decimal; ROC-AUC is shown on its 0–1 scale.
+
+| Saved checkpoint | Accuracy | Balanced acc. | Sensitivity | Specificity | Precision | F1 | ROC-AUC |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Logistic regression · 4 features | 51.8% | 51.7% | 58.1% | 45.3% | 52.0% | 54.9% | 0.526 |
+| Linear SVM · 4 features | 50.9% | 50.9% | 52.0% | 49.8% | 51.3% | 51.6% | 0.497 |
+| RBF SVM · 4 features | 52.4% | 52.5% | 51.1% | 53.8% | 53.0% | 52.0% | 0.532 |
+| Linear SVM · 6 features | 50.4% | 50.0% | 100.0% | 0.0% | 50.4% | 67.1% | 0.454 |
+| RBF SVM · 6 features | 54.7% | 54.6% | 60.8% | 48.4% | 54.5% | 57.5% | 0.532 |
+| Linear SVM · 8 features | 50.4% | 50.0% | 100.0% | 0.0% | 50.4% | 67.1% | 0.506 |
+| RBF SVM · 8 features | 50.4% | 50.0% | 100.0% | 0.0% | 50.4% | 67.1% | 0.488 |
+| VQC · 4 qubits, noiseless | 52.7% | 52.7% | 49.8% | 55.6% | 53.3% | 51.5% | 0.515 |
+| VQC · 4 qubits, noisy | 52.7% | 52.7% | 49.3% | 56.1% | 53.3% | 51.3% | 0.517 |
+| VQC · 6 qubits | 53.1% | 52.9% | 74.5% | 31.4% | 52.5% | 61.6% | 0.556 |
+| VQC · 8 qubits | 48.4% | 48.5% | 42.7% | 54.3% | 48.7% | 45.5% | 0.499 |
+
+Source: [`model_comparison_metrics.json`](Experimental_ML/Lung_Cancer/results/classical_vs_quantum/model_comparison_metrics.json), plus the per-feature SVM metrics files for 6- and 8-feature linear SVM results. The selected feature orders are in `Experimental_ML/Lung_Cancer/data/processed/selected_features*.json`.
+
+These scores are modest and several models behave poorly (for example, the 6- and 8-feature linear SVM checkpoints predict the positive class for every test row). They should be treated as experimental results, not evidence of diagnostic performance. Some additional models have metric rows but no saved estimator file; the app only registers checkpoints it can actually load.
+
 
 ## What I can do in the app
 
@@ -144,27 +177,6 @@ Open the web app, register an account, then follow **Datasets → Preprocessing 
 - Imported lung-cancer checkpoints have stricter requirements: target `LUNG_CANCER`, the checkpoint’s exact feature names and order, numeric columns, and min-max scaling on that full feature set. A checkpoint is evaluated on the uploaded data; the checkpoint is **not fine-tuned** by that operation. Other built-in SVM/VQC templates are fitted on the uploaded data.
 - A new run saves a model artifact, a training record, an evaluation record, and an experiment record. Its held-out metrics are available in the run results, model details, and performance report.
 
-## Checked-in Experimental_ML checkpoints and results
-
-The platform discovers runnable checkpoints from `Experimental_ML/Lung_Cancer` and associates them with the source result files. Each row below is the recorded holdout result for **450 test rows**. Percentages are rounded to one decimal; ROC-AUC is shown on its 0–1 scale.
-
-| Saved checkpoint | Accuracy | Balanced acc. | Sensitivity | Specificity | Precision | F1 | ROC-AUC |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Logistic regression · 4 features | 51.8% | 51.7% | 58.1% | 45.3% | 52.0% | 54.9% | 0.526 |
-| Linear SVM · 4 features | 50.9% | 50.9% | 52.0% | 49.8% | 51.3% | 51.6% | 0.497 |
-| RBF SVM · 4 features | 52.4% | 52.5% | 51.1% | 53.8% | 53.0% | 52.0% | 0.532 |
-| Linear SVM · 6 features | 50.4% | 50.0% | 100.0% | 0.0% | 50.4% | 67.1% | 0.454 |
-| RBF SVM · 6 features | 54.7% | 54.6% | 60.8% | 48.4% | 54.5% | 57.5% | 0.532 |
-| Linear SVM · 8 features | 50.4% | 50.0% | 100.0% | 0.0% | 50.4% | 67.1% | 0.506 |
-| RBF SVM · 8 features | 50.4% | 50.0% | 100.0% | 0.0% | 50.4% | 67.1% | 0.488 |
-| VQC · 4 qubits, noiseless | 52.7% | 52.7% | 49.8% | 55.6% | 53.3% | 51.5% | 0.515 |
-| VQC · 4 qubits, noisy | 52.7% | 52.7% | 49.3% | 56.1% | 53.3% | 51.3% | 0.517 |
-| VQC · 6 qubits | 53.1% | 52.9% | 74.5% | 31.4% | 52.5% | 61.6% | 0.556 |
-| VQC · 8 qubits | 48.4% | 48.5% | 42.7% | 54.3% | 48.7% | 45.5% | 0.499 |
-
-Source: [`model_comparison_metrics.json`](Experimental_ML/Lung_Cancer/results/classical_vs_quantum/model_comparison_metrics.json), plus the per-feature SVM metrics files for 6- and 8-feature linear SVM results. The selected feature orders are in `Experimental_ML/Lung_Cancer/data/processed/selected_features*.json`.
-
-These scores are modest and several models behave poorly (for example, the 6- and 8-feature linear SVM checkpoints predict the positive class for every test row). They should be treated as experimental results, not evidence of diagnostic performance. Some additional models have metric rows but no saved estimator file; the app only registers checkpoints it can actually load.
 
 ## What the main screens show
 
