@@ -35,7 +35,7 @@ Source: [`model_comparison_metrics.json`](Experimental_ML/Lung_Cancer/results/cl
 These scores are modest and several models behave poorly (for example, the 6- and 8-feature linear SVM checkpoints predict the positive class for every test row). They should be treated as experimental results, not evidence of diagnostic performance. Some additional models have metric rows but no saved estimator file; the app only registers checkpoints it can actually load.
 
 
-## What I can do in the app
+## What I can do in the web app
 
 1. **Create an account and upload a CSV.** Each uploaded file is stored as a dataset version associated with the signed-in user.
 2. **Inspect that version.** The app reads the uploaded file and reports its row and column counts, names, data types, missing values, column summaries/distributions, duplicate rows, and possible target information.
