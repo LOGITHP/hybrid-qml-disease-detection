@@ -97,8 +97,8 @@ export const LandingPage: React.FC = () => {
       <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-[68px] max-w-7xl items-center justify-between gap-5 px-5 sm:px-8">
           <Link to="/" className="flex shrink-0 items-center gap-3" aria-label="HybridQML home">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-700 to-quantum-600 text-white shadow-md shadow-indigo-900/15">
-              <Atom className="h-5 w-5" />
+            <span className="flex h-10 w-10 shrink-0 overflow-hidden items-center justify-center rounded-xl bg-gradient-to-br from-brand-700 to-quantum-600 text-white shadow-md shadow-indigo-900/15">
+              <img src="/logo.jpg" alt="Dream Weaver Logo" className="h-full w-full object-cover" />
             </span>
             <span>
               <span className="block text-sm font-bold tracking-tight">HybridQML</span>

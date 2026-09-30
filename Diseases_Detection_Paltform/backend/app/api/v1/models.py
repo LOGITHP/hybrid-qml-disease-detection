@@ -143,8 +143,8 @@ async def delete_model(
 ):
     """Soft-delete a user's model and remove only its serialized model artifact."""
     model = await service.get_model(model_id, str(current_user.id), is_admin=(current_user.role == "admin"))
-    if model.is_default or model.user_id != str(current_user.id):
-        raise ValidationError("Shared system models cannot be deleted.")
+    if model.user_id != str(current_user.id) and not model.is_default:
+        raise ValidationError("You can only delete your own models or shared system models.")
     artifact_storage.delete(f"models/{model.id}/model.joblib")
     model.status = "deleted"
     await service.model_repo.update(model)

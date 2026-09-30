@@ -94,8 +94,8 @@ export const ModelDetailPage: React.FC = () => {
               </div>
               {recordedExperiment && (
                 <div className="rounded-xl bg-brand-50 border border-brand-100 p-4 col-span-2 sm:col-span-3">
-                  <span className="block text-[10px] font-bold uppercase tracking-wider text-brand-600 mb-1 flex items-center gap-1"><Database className="w-3 h-3"/> Original benchmark dataset</span>
-                  <b className="text-xs font-mono text-brand-900 break-all">Experimental_ML/Lung_Cancer/data/raw/V1_dataset.csv</b>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-brand-600 mb-1 flex items-center gap-1"><Database className="w-3 h-3"/> Dataset</span>
+                  <b className="text-xs text-brand-900 break-all">Lung Cancer Survey (V1)</b>
                 </div>
               )}
             </div>

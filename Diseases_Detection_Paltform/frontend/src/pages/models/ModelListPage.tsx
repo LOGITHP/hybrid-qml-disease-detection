@@ -123,8 +123,8 @@ export const ModelListPage: React.FC = () => {
 
           <div className="rounded-lg bg-slate-50 p-3 border border-slate-100 space-y-2">
             <div className="flex items-start gap-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider w-20">Source</span>
-              <span className="text-xs font-medium text-slate-800">{String(config.source_experiment || config.source || 'Experimental_ML')}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider w-20">Dataset</span>
+              <span className="text-xs font-medium text-slate-800">Lung Cancer Survey (V1)</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider w-20">Framework</span>
@@ -145,6 +145,14 @@ export const ModelListPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to delete this pretrained model?')) deleteMutation.mutate(model.id);
+              }}
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
+            >
+              Delete
+            </button>
             <Link to={`/models/${model.id}`} className="btn-secondary px-3 py-1.5 text-xs font-semibold">Details</Link>
           </div>
         </article>;

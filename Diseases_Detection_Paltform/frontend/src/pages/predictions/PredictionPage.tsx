@@ -94,7 +94,7 @@ export const PredictionPage: React.FC = () => {
               <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Target</span><span className="font-mono font-semibold">{targetColumn || '—'}</span></div>
             </div> : isPretrained ? <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Model</span><span className="font-semibold">{activeModel?.name}</span></div>
-              <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Dataset</span><span className="font-mono font-semibold text-[10px] break-all">C:\\Users\\logit\\Downloads\\hybrid-qml-disease-detection\\Experimental_ML\\Lung_Cancer\\data\\raw</span></div>
+              <div className="rounded-lg bg-slate-50 p-3"><span className="block text-slate-500">Dataset</span><span className="font-semibold text-xs">Lung Cancer Survey (V1)</span></div>
             </div> : <p className="text-xs text-amber-900">{activeModel ? 'Dataset unavailable — prediction/feedback cannot be processed because the dataset associated with this model is unavailable.' : 'Select a trained model to resolve its associated dataset version.'} <Link to="/datasets" className="font-semibold text-brand-800 underline">Open datasets</Link></p>}
           </section>
 

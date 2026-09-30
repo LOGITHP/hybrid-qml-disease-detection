@@ -58,8 +58,8 @@ export const LoginPage: React.FC = () => {
         <div className="bg-gradient-to-br from-brand-900 via-brand-800 to-quantum-900 p-8 text-white flex flex-col justify-between relative overflow-hidden">
           <div className="relative z-10 space-y-4">
             <div className="flex items-center space-x-3">
-              <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md">
-                <Atom className="w-6 h-6 text-quantum-300 animate-pulse" />
+              <div className="h-12 w-12 overflow-hidden bg-white/10 rounded-xl backdrop-blur-md shrink-0">
+                <img src="/logo.jpg" alt="Dream Weaver Logo" className="h-full w-full object-cover" />
               </div>
               <div>
                 <h2 className="font-bold text-lg text-white">HybridQML</h2>
