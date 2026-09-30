@@ -54,7 +54,17 @@ In building this platform, we established a rigorous benchmark comparing classic
    - *Quantum VQC* demonstrates superior feature expressivity, specifically capturing complex, non-linear correlations in the patient data. Our hybrid approach shows promising theoretical advantages in parameter efficiency.
 5. **Zero Data Leakage Architecture**: Strict temporal and logical separation of training and testing data splits are enforced at the database level to ensure clinical validity.
 
+## Recent Updates & Fixes
+
+We have recently improved the robustness and UX of the training and model management pipeline:
+- **GPU-Accelerated Quantum Simulation**: The platform now enforces PennyLane's `lightning.gpu` (cuQuantum) simulator for VQC models by default when available, vastly speeding up circuit execution times for biomedical datasets.
+- **Improved UI and Session State**: Fixed an issue in the Training Wizard where stale dataset UUIDs were cached in `sessionStorage` and sent to the backend, causing 404 crashes. The UI now auto-clears stale state and securely ties downstream runs to validated Dataset Versions.
+- **Model Zoo Clarity**: Redesigned the Model Zoo page to display human-readable dataset names and version tags in the filter dropdowns and Model Cards instead of raw MongoDB Object IDs.
+- **System Dataset Permissions**: Fixed an authorization bug in `training_service.py` that inadvertently blocked users from training models on system-seeded datasets (e.g., the default Lung Cancer benchmark dataset).
+- **Background Task Resilience**: Wrapped Celery/FastAPI `BackgroundTasks` with global exception handlers. If a training run crashes (e.g., due to OOM errors or invalid configs), it is caught and safely marked as `failed` in the database, preventing "zombie" runs.
+
 ## How to Run (Docker Compose)
+
 
 The entire platform is heavily containerized. You do not need to install local databases or Python environments.
 

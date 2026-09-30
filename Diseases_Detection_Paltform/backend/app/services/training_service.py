@@ -56,14 +56,21 @@ class TrainingService:
         run_id: Optional[str] = None,
     ) -> TrainingRun:
         started_at = time.time()
-        logger.debug(f"[TRAINING TRACE] Starting execute_training_run with model_id={model_id}, dataset_version_id={dataset_version_id}")
+        logger.info(f"[TRAINING TRACE] Starting execute_training_run with model_id={model_id}, dataset_version_id={dataset_version_id}")
+        
+        if run_id:
+            run = await self.training_repo.get_by_id(run_id)
+            if run:
+                run.status = "running"
+                await self.training_repo.update(run)
+
         hyperparameters = hyperparameters or {}
 
         template = await self.model_repo.get_by_id(model_id)
         if not template or (template.user_id != user_id and not template.is_default):
             raise ResourceNotFoundError("Model", model_id)
         version = await self.dataset_repo.get_version(dataset_version_id)
-        if not version or version.user_id != user_id:
+        if not version or (version.user_id != user_id and version.user_id != "system"):
             raise ResourceNotFoundError("DatasetVersion", dataset_version_id)
 
         feature_run = await FeatureSelectionRun.get(feature_selection_run_id)
@@ -75,9 +82,9 @@ class TrainingService:
             raise ValidationError("The feature-selection run does not contain selected feature columns.")
 
         csv_path = f"datasets/{version.dataset_id}/versions/{version.id}/original.csv"
-        logger.debug(f"[TRAINING TRACE] Loading dataset from path: {csv_path}")
+        logger.info(f"[TRAINING TRACE] Loading dataset from path: {csv_path}")
         df = pd.read_csv(io.BytesIO(self.storage.load(csv_path)))
-        logger.debug(f"[TRAINING TRACE] Loaded dataset. Shape: {df.shape}")
+        logger.info(f"[TRAINING TRACE] Loaded dataset. Shape: {df.shape}")
         if not target or target not in df.columns:
             raise ValidationError("Select a valid target column in Feature Selection before training.")
         if df[target].isna().any():
@@ -114,9 +121,9 @@ class TrainingService:
             dataset_id=str(version.dataset_id), dataset_version_id=str(version.id), steps=steps,
             summary="Saved preprocessing configuration for the selected upload.",
         )
-        logger.debug(f"[TRAINING TRACE] Executing preprocessing plan with {len(steps)} steps. Selected features: {features}")
+        logger.info(f"[TRAINING TRACE] Executing preprocessing plan with {len(steps)} steps. Selected features: {features}")
         processed = PreprocessingAgent().execute_plan(df, plan, target, feature_columns=features)
-        logger.debug(f"[TRAINING TRACE] Preprocessing complete. X_train.shape={processed['X_train'].shape}, X_test.shape={processed['X_test'].shape}")
+        logger.info(f"[TRAINING TRACE] Preprocessing complete. X_train.shape={processed['X_train'].shape}, X_test.shape={processed['X_test'].shape}")
         omitted = sorted(set(features) - set(processed["original_features"]))
         if omitted:
             raise ValidationError(
@@ -160,7 +167,7 @@ class TrainingService:
         target_map = {name: int(name == positive_class) for name in classes}
         y_train = np.asarray([target_map[str(value)] for value in processed["y_train"]], dtype=int)
         y_test = np.asarray([target_map[str(value)] for value in processed["y_test"]], dtype=int)
-        logger.debug(f"[TRAINING TRACE] Target mapping complete. y_train.shape={y_train.shape}, y_test.shape={y_test.shape}")
+        logger.info(f"[TRAINING TRACE] Target mapping complete. y_train.shape={y_train.shape}, y_test.shape={y_test.shape}")
         feature_order_indices = []
         for feature in features:
             matched_indices = []
@@ -179,7 +186,7 @@ class TrainingService:
         X_train = X_train[:, feature_order_indices]
         X_test = X_test[:, feature_order_indices]
 
-        logger.debug(f"[TRAINING TRACE] Applied feature selection. X_train.shape={X_train.shape}, X_test.shape={X_test.shape}")
+        logger.info(f"[TRAINING TRACE] Applied feature selection. X_train.shape={X_train.shape}, X_test.shape={X_test.shape}")
 
         if is_pretrained and template_config.get("model_file"):
             estimator = pretrained_model_loader.load_classical_svm(template_config["model_file"])
@@ -241,9 +248,9 @@ class TrainingService:
             raise ValidationError(f"Unsupported model type '{template.model_type}'.")
 
         if not is_pretrained:
-            logger.debug(f"[TRAINING TRACE] Starting estimator fit...")
+            logger.info(f"[TRAINING TRACE] Starting estimator fit...")
             await asyncio.to_thread(estimator.fit, X_train, y_train)
-            logger.debug(f"[TRAINING TRACE] Estimator fit completed.")
+            logger.info(f"[TRAINING TRACE] Estimator fit completed.")
         duration = time.time() - started_at
         inference_started = time.perf_counter()
         probabilities = await asyncio.to_thread(_positive_class_probabilities, estimator, X_test)
@@ -292,7 +299,7 @@ class TrainingService:
         dataset = await self.dataset_repo.get_by_id(version.dataset_id)
         dataset_name = dataset.name if dataset else "Uploaded dataset"
         trained_model_name = custom_name if custom_name else f"{template.name} · {dataset_name} {version.version_tag}"
-        logger.debug(f"[TRAINING TRACE] Creating Model record in database: {trained_model_name}")
+        logger.info(f"[TRAINING TRACE] Creating Model record in database: {trained_model_name}")
         trained_model = await self.model_repo.create(Model(
             user_id=user_id, name=trained_model_name,
             description=(
@@ -343,7 +350,7 @@ class TrainingService:
             "preprocessing_run_id": str(preprocessing_run.id) if preprocessing_run else None,
             "feature_selection_run_id": str(feature_run.id),
         }, buffer)
-        logger.debug(f"[TRAINING TRACE] Serializing and saving artifact to models/{trained_model.id}/model.joblib")
+        logger.info(f"[TRAINING TRACE] Serializing and saving artifact to models/{trained_model.id}/model.joblib")
         self.storage.save(f"models/{trained_model.id}/model.joblib", buffer.getvalue())
 
         qml_config = None
@@ -386,25 +393,36 @@ class TrainingService:
         trained_model.configuration["metrics"]["inference_duration_ms"] = inference_duration_ms
         await self.model_repo.update(trained_model)
 
-        run = await self.training_repo.create(TrainingRun(
-            user_id=user_id, model_id=str(trained_model.id), dataset_version_id=str(version.id),
-            feature_selection_run_id=str(feature_run.id),
-            preprocessing_run_id=str(preprocessing_run.id) if preprocessing_run else None,
-            learning_type="QML" if template.model_type == "vqc" else "CML",
-            model_type=template.model_type,
-            status="completed", metrics=metrics,
-            model_parameters={
-                "parameter_count": int(X_train.shape[1] * layers + 1) if template.model_type == "vqc" else None,
-            },
-            training_config={
-                "hyperparameters": hyperparameters,
-                "random_state": 42,
-                "is_noisy_quantum": is_noisy_quantum,
-                "noise_params": noise_params,
-            },
-            feature_config={"selected_features": features, "target_column": target},
-            qml_config=qml_config
-        ))
+        run = await self.training_repo.get_by_id(run_id) if run_id else None
+        if not run:
+            run = TrainingRun(
+                user_id=user_id, dataset_version_id=str(version.id),
+                feature_selection_run_id=str(feature_run.id),
+                preprocessing_run_id=str(preprocessing_run.id) if preprocessing_run else None,
+            )
+        
+        run.model_id = str(trained_model.id)
+        run.learning_type = "QML" if template.model_type == "vqc" else "CML"
+        run.model_type = template.model_type
+        run.status = "completed"
+        run.metrics = metrics
+        run.model_parameters = {
+            "parameter_count": int(X_train.shape[1] * layers + 1) if template.model_type == "vqc" else None,
+        }
+        run.training_config = {
+            "hyperparameters": hyperparameters,
+            "random_state": 42,
+            "is_noisy_quantum": is_noisy_quantum,
+            "noise_params": noise_params,
+        }
+        run.feature_config = {"selected_features": features, "target_column": target}
+        run.qml_config = qml_config
+
+        if run_id:
+            run = await self.training_repo.update(run)
+        else:
+            run = await self.training_repo.create(run)
+
         trained_model.training_run_id = str(run.id)
         trained_model.status = "trained"
         await self.model_repo.update(trained_model)
@@ -424,6 +442,8 @@ class TrainingService:
             selected_features=features, training_run_ids=[str(run.id)],
         ).insert()
         run.experiment_id = str(experiment.id)
+        
+        logger.info(f"[TRAINING TRACE] execute_training_run completed successfully for run_id={run_id}")
         return await self.training_repo.update(run)
 
     @staticmethod

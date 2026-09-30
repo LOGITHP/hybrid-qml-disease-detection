@@ -56,7 +56,7 @@ export const TrainingWizardPage: React.FC = () => {
     encoding_method: 'angle_ry',
     variational_gate: 'RY',
     entanglement_strategy: 'linear_cnot',
-    backend_type: 'default.qubit',
+    backend_type: 'lightning.gpu',
     noise_params: { p_gate: 0.01, p_cnot: 0.02, p_meas: 0.01 },
   });
 
@@ -75,6 +75,13 @@ export const TrainingWizardPage: React.FC = () => {
     queryFn: () => featuresApi.listRuns(selectedVersionId),
     enabled: !!selectedVersionId,
   });
+
+  const { data: trainingRuns } = useQuery({
+    queryKey: ['trainingRuns'],
+    queryFn: trainingApi.listRuns,
+    refetchInterval: 5000,
+  });
+  const runningTrainings = trainingRuns?.filter((r: any) => r.status === 'running') || [];
 
   // ── derive active objects ────────────────────────────────────────────────
   const allVersions = (datasets || []).flatMap((ds) =>
@@ -101,6 +108,14 @@ export const TrainingWizardPage: React.FC = () => {
     selectedFeatures.length > 0;
 
   // ── when version changes, reset downstream FS run ─────────────────────
+  useEffect(() => {
+    // If datasets have loaded but the selected version doesn't exist, clear it
+    if (datasets && datasets.length > 0 && selectedVersionId && !allVersions.find(v => v.id === selectedVersionId)) {
+      setSelectedVersionId('');
+      sessionStorage.removeItem('activeDatasetVersionId');
+    }
+  }, [datasets, selectedVersionId, allVersions]);
+
   useEffect(() => {
     // if fsRuns loaded and we don't have a valid selection, pick the latest
     if (fsRuns && fsRuns.length > 0 && (!selectedFSRunId || !fsRuns.find((r: any) => r.id === selectedFSRunId))) {
@@ -526,6 +541,56 @@ export const TrainingWizardPage: React.FC = () => {
             <p className="text-[11px] text-amber-700 text-center">
               Complete all pipeline steps above to enable training.
             </p>
+          )}
+
+          {runningTrainings.length > 0 && (
+            <div className="mt-6 border-t border-slate-100 pt-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-brand-800 flex items-center gap-2 mb-3">
+                <Activity className="h-4 w-4 animate-pulse" />
+                Active Training Runs
+              </h3>
+              <div className="space-y-3">
+                {runningTrainings.map((run: any) => (
+                  <div key={run.id} className="block rounded-lg border border-brand-200 bg-brand-50 p-3">
+                    <Link to={`/training/${run.id}`} className="flex items-center justify-between hover:opacity-80">
+                      <span className="font-mono text-[10px] text-slate-500">Run {run.id.slice(0, 8)}...</span>
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-brand-700">
+                        {run.status === 'running' || run.status === 'pending' ? (
+                          <><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span></span> Running...</>
+                        ) : run.status === 'paused' ? (
+                          'Paused'
+                        ) : run.status === 'failed' ? (
+                          <span className="text-red-600">Failed</span>
+                        ) : (
+                          'Completed'
+                        )}
+                      </span>
+                    </Link>
+                    <div className="mt-2 text-xs font-bold text-slate-800 truncate mb-3">{run.custom_name || run.model_id || 'VQC Model'}</div>
+                    <div className="flex gap-2 border-t border-brand-100 pt-2">
+                      <button 
+                        onClick={(e) => {
+                           e.preventDefault();
+                           trainingApi.cancelRun(run.id).then(() => queryClient.invalidateQueries({ queryKey: ['trainingRuns'] }));
+                        }} 
+                        className="flex-1 rounded bg-red-50 py-1.5 text-[10px] font-bold text-red-700 hover:bg-red-100 transition-colors"
+                      >
+                        Quit
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                           e.preventDefault();
+                           trainingApi.pauseRun(run.id).then(() => queryClient.invalidateQueries({ queryKey: ['trainingRuns'] }));
+                        }}
+                        className="flex-1 rounded bg-slate-200 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-300 transition-colors"
+                      >
+                        Pause
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </aside>
       </div>

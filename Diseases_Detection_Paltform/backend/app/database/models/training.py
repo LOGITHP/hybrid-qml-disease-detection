@@ -15,6 +15,7 @@ class TrainingRun(Document):
     preprocessing_run_id: Optional[str] = None
     preprocessing_artifact_id: Optional[str] = None
     experiment_id: str = Field(default_factory=lambda: f"EXP-{uuid.uuid4().hex[:8].upper()}")
+    custom_name: Optional[str] = None
     
     # Configurations
     feature_config: Dict[str, Any] = Field(default_factory=dict)

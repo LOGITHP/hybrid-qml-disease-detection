@@ -39,7 +39,14 @@ export const ModelListPage: React.FC = () => {
 
   // Extract unique values for filters
   const types = [...new Set(trainedModels.map((model) => model.model_type))];
-  const datasets = [...new Set(trainedModels.map((m) => m.configuration?.dataset_id || m.configuration?.dataset_version_id).filter(Boolean))];
+  const datasetsMap = new Map();
+  trainedModels.forEach((m) => {
+    const dsId = m.configuration?.dataset_id || m.configuration?.dataset_version_id;
+    if (dsId) {
+      datasetsMap.set(dsId, m.configuration?.dataset_name || dsId);
+    }
+  });
+  const datasets = Array.from(datasetsMap.entries());
   const frameworks = [...new Set(trainedModels.map((m) => m.configuration?.framework || (m.model_type.includes('vqc') ? 'PennyLane' : 'scikit-learn')))];
 
   const filteredModels = useMemo(() => {
@@ -185,7 +192,7 @@ export const ModelListPage: React.FC = () => {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 pt-4 border-t border-slate-200">
           <select value={datasetFilter} onChange={(e) => setDatasetFilter(e.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:ring-brand-500 focus:border-brand-500">
             <option value="all">Dataset: All</option>
-            {datasets.map(ds => <option key={ds as string} value={ds as string}>{ds as string}</option>)}
+            {datasets.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
           </select>
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:ring-brand-500 focus:border-brand-500">
             <option value="all">Paradigm: All</option>
@@ -211,7 +218,7 @@ export const ModelListPage: React.FC = () => {
         const isCheckpointEvaluation = Boolean(config.pretrained_used);
         return <article key={model.id} className="card-scientific space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3"><div><div className="mb-1 flex items-center gap-2"><StatusBadge status={model.model_type} size="sm" /><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isCandidate ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{isCandidate ? 'Candidate · review required' : isCheckpointEvaluation ? 'Checkpoint evaluated on upload' : 'Trained on upload'}</span></div><h3 className="text-base font-bold text-slate-900">{model.name}</h3><p className="mt-1 text-[11px] text-slate-500">{model.description}</p></div><Link to={`/models/${model.id}`} className="btn-secondary shrink-0 text-xs">Details</Link></div>
-          <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4"><div className="rounded bg-slate-50 p-2"><span className="block text-slate-500">Dataset version</span><b className="break-all font-mono">{String(config.dataset_version_id || '—')}</b></div><div className="rounded bg-slate-50 p-2"><span className="block text-slate-500">Features</span><b>{features.length}</b></div><div className="rounded bg-slate-50 p-2"><span className="block text-slate-500">Preprocessing</span><b className="break-all font-mono">{String(config.preprocessing_run_id || '—')}</b></div><div className="rounded bg-slate-50 p-2"><span className="block text-slate-500">Version / date</span><b>v{String(config.model_version || 1)} · {new Date(model.created_at).toLocaleDateString()}</b></div></div>
+          <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4"><div className="rounded bg-slate-50 p-2"><span className="block text-slate-500">Dataset version</span><b className="break-words">{config.dataset_name ? `${config.dataset_name} ${config.dataset_version_tag || ''}` : String(config.dataset_version_id || '—')}</b></div><div className="rounded bg-slate-50 p-2"><span className="block text-slate-500">Features</span><b>{features.length}</b></div><div className="rounded bg-slate-50 p-2"><span className="block text-slate-500">Preprocessing</span><b className="break-all font-mono">{String(config.preprocessing_run_id || '—')}</b></div><div className="rounded bg-slate-50 p-2"><span className="block text-slate-500">Version / date</span><b>v{String(config.model_version || 1)} · {new Date(model.created_at).toLocaleDateString()}</b></div></div>
           <div className="rounded-lg bg-slate-50 p-3"><span className="mb-2 block text-[10px] font-semibold uppercase text-slate-500">Selected features</span><span className="font-mono text-[11px] text-slate-700">{features.join(', ') || 'Not recorded'}</span></div>
           <ModelMetrics model={model} />
           {model.model_type === 'vqc' && (() => {

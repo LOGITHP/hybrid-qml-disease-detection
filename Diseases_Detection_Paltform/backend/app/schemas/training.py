@@ -36,6 +36,7 @@ class TrainingRunResponse(BaseModel):
     experiment_id: Optional[str] = None
     user_id: str
     model_id: str
+    custom_name: Optional[str] = None
     model_type: Optional[str] = None
     learning_type: Optional[str] = None
     dataset_version_id: str
