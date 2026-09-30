@@ -218,10 +218,6 @@ export const trainingApi = {
     const res = await apiClient.post<{ data: TrainingRun }>('/training', payload);
     return res.data.data;
   },
-  deleteRun: async (runId: string): Promise<void> => {
-    await apiClient.delete(/features/runs/);
-  },
-
   getStatus: async (runId: string): Promise<TrainingRun> => {
     const res = await apiClient.get<TrainingRun>(`/training/${runId}`);
     return res.data;

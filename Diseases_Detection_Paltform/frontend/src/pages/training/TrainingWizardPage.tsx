@@ -150,8 +150,14 @@ export const TrainingWizardPage: React.FC = () => {
 
   const deleteFsRunMutation = useMutation({
     mutationFn: (id: string) => featuresApi.deleteRun(id),
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ['fsRuns', selectedVersionId] });
+      if (selectedFSRunId === deletedId) {
+        setSelectedFSRunId('');
+        sessionStorage.removeItem('activeFeatureSelectionRunId');
+        sessionStorage.removeItem('activeSelectedFeatures');
+        sessionStorage.removeItem('activeTargetColumn');
+      }
     },
   });
 

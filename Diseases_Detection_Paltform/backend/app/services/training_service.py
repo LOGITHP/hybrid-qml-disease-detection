@@ -406,6 +406,7 @@ class TrainingService:
             qml_config=qml_config
         ))
         trained_model.training_run_id = str(run.id)
+        trained_model.status = "trained"
         await self.model_repo.update(trained_model)
         await Evaluation(
             user_id=user_id, model_id=str(trained_model.id), dataset_version_id=str(version.id),
