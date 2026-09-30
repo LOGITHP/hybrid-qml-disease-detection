@@ -89,15 +89,12 @@ class VariationalQuantumClassifier(IModel):
         return float(1.0 / (1.0 + pnp.exp(-logit)))
 
     def _forward_batch(self, X: np.ndarray, weights, bias) -> np.ndarray:
-        """Compute probabilities for a batch of feature vectors."""
-        probs = []
-        for i in range(len(X)):
-            res = self.circuit(X[i], weights)
-            z_mean = pnp.mean(pnp.stack(res))
-            logit = z_mean + bias
-            p = 1.0 / (1.0 + pnp.exp(-logit))
-            probs.append(p)
-        return pnp.array(probs)
+        """Compute probabilities for a batch of feature vectors using parameter broadcasting."""
+        res = self.circuit(X, weights)
+        z_mean = pnp.mean(pnp.stack(res), axis=0)
+        logit = z_mean + bias
+        probs = 1.0 / (1.0 + pnp.exp(-logit))
+        return probs
 
     def fit(self, X: np.ndarray, y: np.ndarray, **kwargs: Any) -> "VariationalQuantumClassifier":
         """Train variational parameters using gradient descent / Adam optimizer."""
