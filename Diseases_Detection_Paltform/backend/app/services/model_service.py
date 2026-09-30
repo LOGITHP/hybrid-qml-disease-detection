@@ -139,15 +139,14 @@ class ModelService:
                 quantum_details=config.get("quantum_config") if model.model_type == "vqc" else None,
             ))
 
-        # Validate: all models must share the same dataset version + target column.
-        # Different feature counts/sets are allowed (useful for comparing 4-feature vs 8-feature models).
-        unique_contexts = set(contexts)
-        if len(unique_contexts) > 1:
+        # Validate: all models must share the same target column.
+        # Different feature counts/sets or dataset versions are allowed.
+        unique_targets = set(t for _, t in contexts if t)
+        if len(unique_targets) > 1:
             raise ValidationError(
-                "All selected models must be trained on the same dataset version and target column. "
-                "Models with different datasets or targets cannot be compared."
+                "All selected models must be trained on the same target column. "
+                "Models with different targets cannot be compared."
             )
-
         definitions = [
             ("accuracy", "Accuracy", True),
             ("balanced_accuracy", "Balanced accuracy", True),

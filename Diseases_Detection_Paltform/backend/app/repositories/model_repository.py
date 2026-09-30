@@ -4,7 +4,12 @@ from app.database.models.model import Model
 
 class ModelRepository:
     async def get_by_id(self, model_id: str) -> Optional[Model]:
-        return await Model.get(model_id)
+        from pydantic_core import ValidationError
+        from bson.errors import InvalidId
+        try:
+            return await Model.get(model_id)
+        except (ValueError, ValidationError, InvalidId):
+            return None
         
     async def list_by_user(self, user_id: str) -> List[Model]:
         return await Model.find({"user_id": {"$in": [user_id, "system"]}}).to_list()

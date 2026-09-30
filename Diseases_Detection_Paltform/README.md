@@ -13,32 +13,33 @@ The architecture is designed as a highly scalable, containerized microservices p
 ## Repository Structure
 
 ```text
-Diseases_Detection_Platform/
-├── backend/                  # FastAPI microservice for ML & Quantum computation
-│   ├── app/                  # Application source code
-│   │   ├── agents/           # LLM-powered preprocessing and explanation agents
-│   │   ├── api/v1/           # RESTful API Endpoints
-│   │   ├── core/             # Configuration, dependencies, and security
-│   │   ├── database/         # MongoDB (Beanie) ODM Models and Session management
-│   │   ├── ml/               # Classical ML pipelines (PCA, SVM, Imputation)
-│   │   ├── quantum/          # PennyLane VQC architecture (Ansatz, Angle Embedding)
-│   │   ├── repositories/     # Data Access Layer
-│   │   ├── schemas/          # Pydantic validation schemas
-│   │   └── services/         # Business logic layer
-│   ├── tests/                # Pytest suite
-│   ├── Dockerfile            # Backend container configuration
-│   └── requirements.txt      # Python dependencies
-├── frontend/                 # React & Vite SPA UI
-│   ├── src/                  # UI source code
-│   │   ├── api/              # Axios API clients
-│   │   ├── components/       # Reusable UI components (Charts, Forms)
-│   │   ├── pages/            # View components (Dashboard, Datasets, Models)
-│   │   ├── store/            # Zustand global state management
-│   │   └── styles/           # Tailwind and global CSS
-│   ├── Dockerfile            # Frontend container (Nginx)
-│   └── package.json          # Node dependencies
-├── docker-compose.yml        # Orchestrates MongoDB, Redis, MinIO, Ollama, Backend, Frontend
-└── README.md                 # Project root documentation
+hybrid-qml-disease-detection/
+├── ai_preprocessing_agent/   # Standalone Python package for LLM-powered schema parsing & plan generation
+├── Diseases_Detection_Platform/
+│   ├── backend/                  # FastAPI microservice for ML & Quantum computation
+│   │   ├── app/                  # Application source code
+│   │   │   ├── api/v1/           # RESTful API Endpoints
+│   │   │   ├── core/             # Configuration, dependencies, and security
+│   │   │   ├── database/         # MongoDB (Beanie) ODM Models and Session management
+│   │   │   ├── ml/               # Classical ML pipelines (PCA, SVM, Imputation)
+│   │   │   ├── quantum/          # PennyLane VQC architecture (Ansatz, Angle Embedding)
+│   │   │   ├── repositories/     # Data Access Layer
+│   │   │   ├── schemas/          # Pydantic validation schemas
+│   │   │   └── services/         # Business logic layer
+│   │   ├── tests/                # Pytest suite
+│   │   ├── Dockerfile            # Backend container configuration
+│   │   └── requirements.txt      # Python dependencies
+│   ├── frontend/                 # React & Vite SPA UI
+│   │   ├── src/                  # UI source code
+│   │   │   ├── api/              # Axios API clients
+│   │   │   ├── components/       # Reusable UI components (Charts, Forms, CircuitDesigner)
+│   │   │   ├── pages/            # View components (Dashboard, Datasets, Models)
+│   │   │   ├── store/            # Zustand global state management
+│   │   │   └── styles/           # Tailwind and global CSS
+│   │   ├── Dockerfile            # Frontend container (Nginx)
+│   │   └── package.json          # Node dependencies
+│   ├── docker-compose.yml        # Orchestrates MongoDB, Redis, MinIO, Ollama, Backend, Frontend
+│   └── README.md                 # Project documentation
 ```
 
 ## Platform Accomplishments & Model Comparison
@@ -61,7 +62,7 @@ The entire platform is heavily containerized. You do not need to install local d
 2. Navigate to the root directory (`Diseases_Detection_Platform`).
 3. Run the complete stack in detached mode:
    ```bash
-   docker-compose up --build -d
+   docker compose up --build -d
    ```
 4. **Services Mapping**:
    - Frontend UI: `http://localhost:3000`
@@ -71,5 +72,12 @@ The entire platform is heavily containerized. You do not need to install local d
 
 To shut down the platform:
 ```bash
-docker-compose down
+docker compose down
 ```
+
+## Troubleshooting
+
+- **Large Dataset Upload Failures (Timeout or `413 Request Entity Too Large`)**:
+  The application Nginx proxy has been configured to accept bodies up to 100MB, and the frontend Axios client timeout is set to 5 minutes (300,000ms). If uploads fail or time out, verify your Docker Engine resources and network settings.
+- **Docker Compose Build Failures (`no such host`)**:
+  If a step fails with a DNS resolution error fetching from Docker Hub (e.g., `registry-1.docker.io`), this is a transient Docker networking issue. Retry the build step.

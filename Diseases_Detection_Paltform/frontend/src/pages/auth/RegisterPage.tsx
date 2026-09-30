@@ -40,8 +40,8 @@ export const RegisterPage: React.FC = () => {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 sm:p-6 font-sans">
       <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8 sm:p-10">
         <div className="flex items-center space-x-3 mb-6">
-          <div className="p-2.5 bg-brand-800 rounded-xl text-white">
-            <Atom className="w-5 h-5 text-quantum-300" />
+          <div className="h-12 w-12 shrink-0">
+            <img src="/logo.jpg" alt="Dream Weaver Logo" className="h-full w-full object-contain mix-blend-multiply rounded-xl" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-slate-900">Create Account</h2>

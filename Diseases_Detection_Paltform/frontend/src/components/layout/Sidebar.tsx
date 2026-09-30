@@ -73,8 +73,8 @@ export const Sidebar: React.FC<{ onCloseMobile?: () => void }> = ({ onCloseMobil
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 border-b border-slate-200 bg-slate-50/40">
         <div className="flex items-center space-x-3">
-          <div className="h-10 w-10 overflow-hidden bg-gradient-to-tr from-brand-700 to-quantum-600 rounded-lg shadow-md shrink-0">
-            <img src="/logo.jpg" alt="Dream Weaver Logo" className="h-full w-full object-cover" />
+          <div className="h-10 w-10 shrink-0">
+            <img src="/logo.jpg" alt="Dream Weaver Logo" className="h-full w-full object-contain mix-blend-multiply" />
           </div>
           <div>
             <span className="font-bold text-slate-900 tracking-wide text-sm block">HybridQML</span>

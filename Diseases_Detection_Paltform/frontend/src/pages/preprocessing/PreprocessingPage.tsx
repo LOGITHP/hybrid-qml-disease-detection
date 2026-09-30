@@ -199,7 +199,7 @@ export const PreprocessingPage: React.FC = () => {
         user_instruction: planSuggestion.trim(),
       });
       if (response.status !== 'valid' || !response.updated_pipeline) {
-        throw new Error(response.explanation || 'The LLM did not return an updated plan.');
+        throw new Error(response.explanation || 'The AI agent did not return an updated plan.');
       }
       return response;
     },
@@ -459,7 +459,7 @@ export const PreprocessingPage: React.FC = () => {
                     <span className="text-xs font-bold text-slate-900">Automatic rule-based baseline</span>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Builds a deterministic baseline from the uploaded column types and missing-value counts. No LLM call runs until you ask it to refine the plan.
+                    Builds a deterministic baseline from the uploaded column types and missing-value counts.
                   </p>
                 </button>
 
@@ -622,10 +622,10 @@ export const PreprocessingPage: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <span className="badge bg-quantum-50 text-quantum-700 border border-quantum-200 font-semibold">
                   {generatedPlan.generation_method === 'llm'
-                    ? `LLM-refined${generatedPlan.generation_provider ? ` · ${generatedPlan.generation_provider}` : ''}`
+                    ? `AI-refined${generatedPlan.generation_provider ? ` · ${generatedPlan.generation_provider}` : ''}`
                     : generatedPlan.generation_method === 'user_defined'
                       ? 'User-defined plan'
-                      : 'Rule-based schema plan · no LLM call'}
+                      : 'Rule-based schema plan'}
                 </span>
                 <span className="text-xs text-slate-400">Step 3 &bull; Plan Review</span>
               </div>
@@ -675,14 +675,14 @@ export const PreprocessingPage: React.FC = () => {
             <div className="flex items-start gap-3">
               <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" />
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-slate-900">Ask the LLM to refine this plan</h3>
+                <h3 className="text-sm font-semibold text-slate-900">Ask the AI agent to refine this plan</h3>
                 <p className="mt-1 text-xs leading-relaxed text-slate-600">
                   {generatedPlan.generation_method === 'llm'
-                    ? 'The current steps were returned by the configured LLM and checked against this dataset schema.'
+                    ? 'The current steps were returned by the AI agent and checked against this dataset schema.'
                     : generatedPlan.generation_method === 'user_defined'
-                      ? 'You created this plan from the transformation choices above. The LLM has not processed it yet.'
-                      : 'This baseline was built with deterministic schema rules. The LLM has not processed it yet.'}
-                  {' '}Your suggestion, column names, data types, and missing-value counts are sent to the configured LLM provider; dataset row values are not sent. If the model is unavailable or returns an invalid plan, this version stays unchanged.
+                      ? 'You created this plan from the transformation choices above. The AI agent has not processed it yet.'
+                      : 'This baseline was built with deterministic schema rules. The AI agent has not processed it yet.'}
+                  {' '}Your suggestion, column names, data types, and missing-value counts are sent to the configured AI provider; dataset row values are not sent. If the model is unavailable or returns an invalid plan, this version stays unchanged.
                 </p>
               </div>
             </div>
@@ -705,7 +705,7 @@ export const PreprocessingPage: React.FC = () => {
                 className="btn-primary flex items-center justify-center gap-2 px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Send className="h-3.5 w-3.5" />
-                <span>{refinePlanMutation.isPending ? 'Loading local model and refining…' : 'Apply suggestion with LLM'}</span>
+                <span>{refinePlanMutation.isPending ? 'Loading local model and refining…' : 'Apply suggestion with AI agent'}</span>
               </button>
             </div>
             {refinePlanMutation.isPending && (
@@ -725,7 +725,7 @@ export const PreprocessingPage: React.FC = () => {
             )}
             {refinePlanMutation.isError && (
               <div role="alert" className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs text-red-800">
-                {refinePlanMutation.error instanceof Error ? refinePlanMutation.error.message : 'The LLM could not update the plan. The current plan is unchanged.'}
+                {refinePlanMutation.error instanceof Error ? refinePlanMutation.error.message : 'The AI agent could not update the plan. The current plan is unchanged.'}
               </div>
             )}
           </div>

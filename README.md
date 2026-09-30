@@ -136,11 +136,11 @@ Open the web app, register an account, then follow **Datasets → Preprocessing 
 
 ## Dataset and training requirements
 
-- Upload a tabular CSV. The optional built-in lung-cancer demo is a small **20-row demo file**, not the 2,998-row research dataset or a clinical benchmark.
+- Upload a tabular CSV (supports files up to 100MB with a robust 5-minute processing window). The optional built-in lung-cancer demo is a small **20-row demo file**, not the 2,998-row research dataset or a clinical benchmark.
 - Preprocessing needs at least 6 rows to create train, validation, and test partitions. Training templates require a target with exactly two non-missing classes.
 - Numeric/categorical columns are discovered from the uploaded file. The preprocessing plan and feature-selection UI use that version’s actual columns.
 - The standard split is 70% training, 15% validation, and 15% held-out test. Transformations are fitted on training rows and then applied to validation/test rows.
-- VQC is limited to 10 encoded feature dimensions by the training service; the current feature-selection UI caps its requested count at 8.
+- VQC safely supports up to **24 encoded feature dimensions** (accommodating one-hot encoded categorical variables) and up to **10 strongly entangling layers** by the training service. The interactive **CircuitDesigner** allows users to visualize the quantum circuit architecture dynamically before initiating the simulator.
 - Imported lung-cancer checkpoints have stricter requirements: target `LUNG_CANCER`, the checkpoint’s exact feature names and order, numeric columns, and min-max scaling on that full feature set. A checkpoint is evaluated on the uploaded data; the checkpoint is **not fine-tuned** by that operation. Other built-in SVM/VQC templates are fitted on the uploaded data.
 - A new run saves a model artifact, a training record, an evaluation record, and an experiment record. Its held-out metrics are available in the run results, model details, and performance report.
 
@@ -251,3 +251,10 @@ npm run build
 - The current `LLMFactory` returns the Gemma-compatible client. The full Compose file points `LLM_BASE_URL` at Ollama, whose API is not the client’s `/generate` endpoint; in that configuration, recommendation text falls back to the built-in heuristic. The schema-aware preprocessing plan and execution can still run.
 - The quantum code uses PennyLane simulators. The repository does not configure a real QPU connection for model training or patient predictions.
 - Redis/Celery and MinIO services are present in Compose, but current dataset/model artifact persistence uses local filesystem storage, and the `/training` API handler currently performs work synchronously.
+
+## Troubleshooting
+
+- **Large Dataset Upload Failures (Timeout or `413 Request Entity Too Large`)**:
+  The application Nginx proxy has been configured to accept bodies up to 100MB, and the frontend Axios client timeout is set to 5 minutes (300,000ms). If uploads fail or time out, ensure your Docker Engine has adequate resources allocated and verify that your local network/VPN proxy settings are not interrupting large multipart uploads to `localhost`.
+- **Docker Compose Build Failures (`no such host`)**:
+  If a step fails with a DNS resolution error fetching from Docker Hub (e.g., `registry-1.docker.io`), this is a transient Docker networking issue. Retry the build step or restart your Docker Desktop daemon.

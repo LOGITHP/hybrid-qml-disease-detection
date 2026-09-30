@@ -44,6 +44,19 @@ class VariationalQuantumClassifier(IModel):
         self.weights = pnp.random.uniform(0.0, 2.0 * pnp.pi, (self.n_layers, self.n_qubits), requires_grad=True)
         self.bias = pnp.array(0.0, requires_grad=True)
 
+        # Auto-detect best simulator device for pure state execution
+        best_device = "default.qubit"
+        try:
+            import cuquantum
+            import pennylane_lightning.lightning_gpu
+            best_device = "lightning.gpu"
+        except ImportError:
+            try:
+                import pennylane_lightning
+                best_device = "lightning.qubit"
+            except ImportError:
+                pass
+
         # Build quantum circuit
         if self.is_noisy:
             self.circuit = create_noisy_vqc_circuit(
@@ -58,6 +71,7 @@ class VariationalQuantumClassifier(IModel):
             self.circuit = create_vqc_circuit(
                 n_qubits=self.n_qubits,
                 n_layers=self.n_layers,
+                device_name=best_device,
                 encoding_method=self.encoding_method,
                 variational_gate=self.variational_gate,
                 entanglement_strategy=self.entanglement_strategy,

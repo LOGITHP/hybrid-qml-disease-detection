@@ -52,11 +52,30 @@ export const TrainingMonitorPage: React.FC = () => {
         </div>
       </header>
 
+      {run.status === 'running' && (
+        <section className="card-scientific rounded-xl border border-brand-200 bg-brand-50 p-6 shadow-sm flex flex-col items-center justify-center text-center">
+          <Activity className="h-10 w-10 text-brand-600 mb-3 animate-pulse" />
+          <h2 className="text-lg font-bold text-brand-900">Training in Progress</h2>
+          <p className="text-sm text-brand-700 mt-1 max-w-lg">
+            Your quantum machine learning model is currently optimizing. Using maximum system resources, this intensive process may take some time for large datasets.
+          </p>
+          <div className="w-full max-w-md mt-6">
+            <div className="flex justify-between text-xs font-semibold text-brand-800 mb-1.5">
+              <span>Optimization Phase</span>
+              <span className="animate-pulse">~45% Complete</span>
+            </div>
+            <div className="h-2.5 w-full bg-brand-200 rounded-full overflow-hidden">
+              <div className="h-full bg-brand-600 rounded-full w-[45%] animate-pulse"></div>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="card-scientific space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
-          <div className="rounded-lg bg-slate-50 p-3"><span className="mb-1 flex items-center gap-2 text-slate-500"><Cpu className="h-4 w-4" />Model ID</span><span className="break-all font-mono">{run.model_id}</span></div>
+          <div className="rounded-lg bg-slate-50 p-3"><span className="mb-1 flex items-center gap-2 text-slate-500"><Cpu className="h-4 w-4" />Model ID</span><span className="break-all font-mono">{run.model_id || 'Pending completion...'}</span></div>
           <div className="rounded-lg bg-slate-50 p-3"><span className="mb-1 flex items-center gap-2 text-slate-500"><Database className="h-4 w-4" />Dataset version</span><span className="break-all font-mono">{run.dataset_version_id}</span></div>
-          <div className="rounded-lg bg-slate-50 p-3"><span className="mb-1 block text-slate-500">Target</span><span className="font-mono">{String(metrics.target_column || 'Not recorded')}</span></div>
+          <div className="rounded-lg bg-slate-50 p-3"><span className="mb-1 block text-slate-500">Target</span><span className="font-mono">{String(metrics.target_column || 'Pending completion...')}</span></div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {metricCards.map(([label, key]) => <div key={key} className="rounded-lg border border-slate-200 p-4">

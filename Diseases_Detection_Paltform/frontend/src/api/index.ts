@@ -79,6 +79,7 @@ export const datasetsApi = {
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 300000,
       }
     );
     return res.data.data;
@@ -215,7 +216,7 @@ export const trainingApi = {
       noise_params?: Record<string, number>;
       custom_name?: string;
   }): Promise<TrainingRun> => {
-    const res = await apiClient.post<{ data: TrainingRun }>('/training', payload);
+    const res = await apiClient.post<{ data: TrainingRun }>('/training', payload, { timeout: 300000 });
     return res.data.data;
   },
   getStatus: async (runId: string): Promise<TrainingRun> => {

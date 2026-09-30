@@ -1,11 +1,12 @@
 """Model training orchestration endpoints."""
 
 from typing import List
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, BackgroundTasks
 from app.core.dependencies import get_current_user, get_training_service
 from app.database.models.user import User
 from app.schemas.common import StandardResponse
 from app.schemas.training import TrainingRunCreate, TrainingRunResponse
+from app.database.models.training import TrainingRun
 from app.services.training_service import TrainingService
 
 router = APIRouter(prefix="/training", tags=["Training"])
@@ -24,11 +25,21 @@ async def list_training_runs(
 @router.post("", response_model=StandardResponse[TrainingRunResponse], status_code=status.HTTP_201_CREATED)
 async def start_training_run(
     payload: TrainingRunCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     service: TrainingService = Depends(get_training_service),
 ):
-    """Train a built-in model against the uploaded dataset and saved pipeline runs."""
-    run = await service.execute_training_run(
+    run = await service.training_repo.create(TrainingRun(
+        user_id=str(current_user.id),
+        model_id="pending",
+        dataset_version_id=payload.dataset_version_id,
+        feature_selection_run_id=payload.feature_selection_run_id,
+        preprocessing_run_id=payload.preprocessing_run_id,
+        status="running"
+    ))
+    
+    background_tasks.add_task(
+        service.execute_training_run,
         user_id=str(current_user.id),
         model_id=payload.model_id,
         dataset_version_id=payload.dataset_version_id,
@@ -38,9 +49,11 @@ async def start_training_run(
         is_noisy_quantum=payload.is_noisy_quantum,
         noise_params=payload.noise_params,
         custom_name=payload.custom_name,
+        run_id=str(run.id)
     )
+    
     return StandardResponse(
-        message="Model training completed successfully.",
+        message="Model training started in background.",
         data=TrainingRunResponse.model_validate(run),
     )
 

@@ -2,6 +2,7 @@
 
 import io
 import time
+import asyncio
 from typing import Any, Dict, Optional
 
 import joblib
@@ -52,6 +53,7 @@ class TrainingService:
         is_noisy_quantum: bool = False,
         noise_params: Optional[Dict[str, float]] = None,
         custom_name: Optional[str] = None,
+        run_id: Optional[str] = None,
     ) -> TrainingRun:
         started_at = time.time()
         logger.debug(f"[TRAINING TRACE] Starting execute_training_run with model_id={model_id}, dataset_version_id={dataset_version_id}")
@@ -210,8 +212,8 @@ class TrainingService:
             variational_gate = str(hyperparameters.get("variational_gate", variational_gate))
             entanglement_strategy = str(hyperparameters.get("entanglement_strategy", entanglement_strategy))
             backend_type = str(hyperparameters.get("backend_type", "default.qubit"))
-            if not 1 <= layers <= 5 or not 1 <= epochs <= 1000:
-                raise ValidationError("VQC layers must be 1–5 and epochs must be 1–1000.")
+            if not 1 <= layers <= 10 or not 1 <= epochs <= 1000:
+                raise ValidationError("VQC layers must be 1–10 and epochs must be 1–1000.")
             if encoding_method not in {"angle_ry", "angle_rx"}:
                 raise ValidationError("VQC encoding must be angle_ry or angle_rx for this PennyLane circuit implementation.")
             if variational_gate not in {"RY", "RZ"}:
@@ -220,8 +222,8 @@ class TrainingService:
                 raise ValidationError("VQC entanglement must be linear_cnot, ring_cnot, or none.")
             if requested_qubits != X_train.shape[1]:
                 raise ValidationError(f"The configured {requested_qubits}-qubit circuit does not match the transformed feature width ({X_train.shape[1]}). Update feature mapping before training.")
-            if X_train.shape[1] > 8:
-                raise ValidationError("PennyLane simulator runs are limited to 8 encoded feature dimensions; select fewer features or use an SVM baseline.")
+            if X_train.shape[1] > 24:
+                raise ValidationError("PennyLane simulator runs are limited to 24 encoded feature dimensions; select fewer features or use an SVM baseline.")
             if not 0.0001 <= learning_rate <= 1.0 or not 1 <= batch_size <= 4096:
                 raise ValidationError("VQC learning rate must be between 0.0001–1 and batch size must be 1–4096.")
             if is_noisy_quantum:
@@ -238,15 +240,13 @@ class TrainingService:
         else:
             raise ValidationError(f"Unsupported model type '{template.model_type}'.")
 
-        logger.debug(f"[TRAINING TRACE] Model initialization complete for type {template.model_type}. is_pretrained={is_pretrained}")
-
         if not is_pretrained:
             logger.debug(f"[TRAINING TRACE] Starting estimator fit...")
-            estimator.fit(X_train, y_train)
+            await asyncio.to_thread(estimator.fit, X_train, y_train)
             logger.debug(f"[TRAINING TRACE] Estimator fit completed.")
         duration = time.time() - started_at
         inference_started = time.perf_counter()
-        probabilities = _positive_class_probabilities(estimator, X_test)
+        probabilities = await asyncio.to_thread(_positive_class_probabilities, estimator, X_test)
         inference_duration_ms = round((time.perf_counter() - inference_started) * 1000 / max(len(y_test), 1), 6)
         predictions = (probabilities >= 0.5).astype(int)
         accuracy = float(accuracy_score(y_test, predictions))
@@ -258,7 +258,7 @@ class TrainingService:
         auc = float(roc_auc_score(y_test, probabilities)) if len(np.unique(y_test)) == 2 else None
 
         # Generalization Metrics (Train)
-        train_probs = _positive_class_probabilities(estimator, X_train)
+        train_probs = await asyncio.to_thread(_positive_class_probabilities, estimator, X_train)
         train_preds = (train_probs >= 0.5).astype(int)
         train_accuracy = float(accuracy_score(y_train, train_preds))
         train_sensitivity = float(recall_score(y_train, train_preds, zero_division=0))

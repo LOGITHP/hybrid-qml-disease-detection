@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Atom, CheckCircle2, ChevronRight, Cpu, Database, Filter, Play, Sliders, Trash2, Settings2, Activity } from 'lucide-react';
 import { datasetsApi, featuresApi, modelsApi, trainingApi } from '../../api';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
+import { CircuitDesigner } from '../../components/quantum/CircuitDesigner';
 
 // ── Pipeline gate step ────────────────────────────────────────────────────────
 function PipelineStep({
@@ -47,6 +48,17 @@ export const TrainingWizardPage: React.FC = () => {
   const [selectedModelId, setSelectedModelId] = useState(() => new URLSearchParams(window.location.search).get('model_id') || '');
   const [cValue, setCValue] = useState(1);
   const [customName, setCustomName] = useState('');
+  
+  const [vqcConfig, setVqcConfig] = useState({
+    n_layers: 2,
+    epochs: 50,
+    batch_size: 32,
+    encoding_method: 'angle_ry',
+    variational_gate: 'RY',
+    entanglement_strategy: 'linear_cnot',
+    backend_type: 'default.qubit',
+    noise_params: { p_gate: 0.01, p_cnot: 0.02, p_meas: 0.01 },
+  });
 
   // ── fetch data ───────────────────────────────────────────────────────────
   const { data: datasets, isLoading: datasetsLoading } = useQuery({
@@ -84,10 +96,8 @@ export const TrainingWizardPage: React.FC = () => {
   const isFeatureSelected = !!processingStatus.feature_selection || !!fsRuns?.length;
   const pipelineReady =
     !!activeVersion &&
-    isPreprocessed &&
     isFeatureSelected &&
     !!selectedFSRunId &&
-    !!preprocessingRunId &&
     selectedFeatures.length > 0;
 
   // ── when version changes, reset downstream FS run ─────────────────────
@@ -120,27 +130,48 @@ export const TrainingWizardPage: React.FC = () => {
     }
   }, [selectableModels.length]);
 
+  const qmlConfig = useMemo(() => {
+    const n_qubits = selectedFeatures.length || 4;
+    return {
+      num_qubits: n_qubits,
+      encoding: {
+        type: 'angle',
+        gates: Array(n_qubits).fill(vqcConfig.encoding_method === 'angle_ry' ? 'RY' : 'RX')
+      },
+      variational_layers: Array.from({ length: vqcConfig.n_layers }).map((_, i) => ({
+        layer: i,
+        gates: Array(n_qubits).fill(vqcConfig.variational_gate)
+      })),
+      entanglement: {
+        type: vqcConfig.entanglement_strategy === 'none' ? 'none' : 'cnot',
+        gate: vqcConfig.entanglement_strategy === 'none' ? '' : 'CNOT'
+      },
+      measurement: {
+        type: 'expectation',
+        qubits: Array.from({ length: n_qubits }).map((_, i) => i)
+      }
+    };
+  }, [vqcConfig, selectedFeatures.length]);
+
   // ── training mutation ───────────────────────────────────────────────────
   const trainMutation = useMutation({
     mutationFn: async () => {
-      if (!activeModel || !activeVersion || !selectedFSRunId || !preprocessingRunId || !pipelineReady) {
+      if (!activeModel || !activeVersion || !selectedFSRunId || !pipelineReady) {
         throw new Error('Complete preprocessing and feature selection on this dataset version first.');
       }
-      let circuit: Record<string, unknown> = {};
-      try { circuit = JSON.parse(sessionStorage.getItem('vqc_circuit_config') || '{}'); } catch { circuit = {}; }
       const hyperparameters = activeModel.model_type === 'vqc'
-        ? { layers: circuit.n_layers || 2, epochs: circuit.epochs || 50, ...circuit }
+        ? { layers: vqcConfig.n_layers, ...vqcConfig }
         : { C: cValue, gamma: 'scale' };
       return trainingApi.startRun({
         model_id: activeModel.id,
         dataset_version_id: activeVersion.id,
         feature_selection_run_id: selectedFSRunId,
-        preprocessing_run_id: preprocessingRunId,
+        preprocessing_run_id: preprocessingRunId || undefined,
         hyperparameters,
-        is_noisy_quantum: activeModel.model_type === 'vqc' && circuit.backend_type === 'default.mixed',
+        is_noisy_quantum: activeModel.model_type === 'vqc' && vqcConfig.backend_type === 'default.mixed',
         noise_params:
-          activeModel.model_type === 'vqc' && circuit.backend_type === 'default.mixed'
-            ? (circuit.noise_params as Record<string, number> | undefined)
+          activeModel.model_type === 'vqc' && vqcConfig.backend_type === 'default.mixed'
+            ? vqcConfig.noise_params
             : undefined,
         custom_name: customName.trim() || undefined,
       });
@@ -347,9 +378,6 @@ export const TrainingWizardPage: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setSelectedModelId(model.id);
-                        if (model.model_type === 'vqc') {
-                          navigate('/models/vqc/configure');
-                        }
                       }}
                       className={`rounded-xl border p-4 text-left transition-colors ${
                         selected ? 'border-brand-800 bg-brand-50' : 'border-slate-200 hover:border-slate-300'
@@ -366,17 +394,59 @@ export const TrainingWizardPage: React.FC = () => {
               </div>
 
               {activeModel?.model_type === 'vqc' ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-lg border border-quantum-200 bg-quantum-50 p-4 text-xs">
-                    <Atom className="h-5 w-5 text-quantum-600 shrink-0" />
-                    <div>
-                      <p className="font-semibold text-quantum-800">Advanced VQC settings enabled</p>
-                      <p className="text-quantum-700">The circuit configuration has been moved to its own page.</p>
-                    </div>
+                <div className="space-y-4 rounded-lg border border-quantum-200 bg-quantum-50/50 p-5">
+                  <div className="flex items-center gap-2 border-b border-quantum-100 pb-3">
+                    <Settings2 className="h-4 w-4 text-quantum-600" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-quantum-800">VQC Circuit Settings</h3>
                   </div>
-                  <Link to="/models/vqc/configure" className="inline-flex items-center gap-2 rounded-lg border border-quantum-300 bg-white px-3.5 py-2 text-xs font-semibold text-quantum-700 transition-colors hover:bg-quantum-50">
-                    <Settings2 className="h-4 w-4" /><span>Configure Advanced VQC Settings</span>
-                  </Link>
+                  
+                  <div className="mt-4 mb-4">
+                    <CircuitDesigner config={qmlConfig} onChange={() => {}} />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <label className="block space-y-1 text-quantum-900">
+                      Variational Layers
+                      <input type="number" min={1} max={10} value={vqcConfig.n_layers} onChange={(e) => setVqcConfig(c => ({...c, n_layers: Number(e.target.value)}))} className="w-full rounded-lg border border-quantum-200 px-3 py-2" />
+                    </label>
+                    <label className="block space-y-1 text-quantum-900">
+                      Training Epochs
+                      <input type="number" min={1} max={200} value={vqcConfig.epochs} onChange={(e) => setVqcConfig(c => ({...c, epochs: Number(e.target.value)}))} className="w-full rounded-lg border border-quantum-200 px-3 py-2" />
+                    </label>
+                    <label className="block space-y-1 text-quantum-900">
+                      Batch Size
+                      <input type="number" min={1} max={1024} value={vqcConfig.batch_size} onChange={(e) => setVqcConfig(c => ({...c, batch_size: Number(e.target.value)}))} className="w-full rounded-lg border border-quantum-200 px-3 py-2" />
+                    </label>
+                    <label className="block space-y-1 text-quantum-900">
+                      Encoding Method
+                      <select value={vqcConfig.encoding_method} onChange={(e) => setVqcConfig(c => ({...c, encoding_method: e.target.value}))} className="w-full rounded-lg border border-quantum-200 px-3 py-2 bg-white">
+                        <option value="angle_ry">Angle (RY)</option>
+                        <option value="angle_rx">Angle (RX)</option>
+                      </select>
+                    </label>
+                    <label className="block space-y-1 text-quantum-900">
+                      Variational Gate
+                      <select value={vqcConfig.variational_gate} onChange={(e) => setVqcConfig(c => ({...c, variational_gate: e.target.value}))} className="w-full rounded-lg border border-quantum-200 px-3 py-2 bg-white">
+                        <option value="RY">RY (Y-Rotation)</option>
+                        <option value="RZ">RZ (Z-Rotation)</option>
+                      </select>
+                    </label>
+                    <label className="block space-y-1 text-quantum-900">
+                      Entanglement Strategy
+                      <select value={vqcConfig.entanglement_strategy} onChange={(e) => setVqcConfig(c => ({...c, entanglement_strategy: e.target.value}))} className="w-full rounded-lg border border-quantum-200 px-3 py-2 bg-white">
+                        <option value="linear_cnot">Linear CNOT</option>
+                        <option value="ring_cnot">Ring CNOT</option>
+                        <option value="none">None (Independent Qubits)</option>
+                      </select>
+                    </label>
+                    <label className="block space-y-1 text-quantum-900">
+                      Backend Type
+                      <select value={vqcConfig.backend_type} onChange={(e) => setVqcConfig(c => ({...c, backend_type: e.target.value}))} className="w-full rounded-lg border border-quantum-200 px-3 py-2 bg-white">
+                        <option value="default.qubit">Ideal Simulator (default.qubit)</option>
+                        <option value="default.mixed">Noisy Simulator (default.mixed)</option>
+                      </select>
+                    </label>
+                  </div>
                 </div>
               ) : (
                 <label className="block max-w-xs space-y-1 text-xs">

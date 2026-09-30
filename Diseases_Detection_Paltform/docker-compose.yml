@@ -105,6 +105,13 @@ services:
       - ./backend:/app
       - backend_artifacts:/app/artifacts
       - ../Experimental_ML:/workspace/Experimental_ML:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       mongodb:
         condition: service_healthy
