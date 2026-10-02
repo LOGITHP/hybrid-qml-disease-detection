@@ -3,6 +3,7 @@ services:
   - type: web
     name: disease-detection-backend
     env: docker
+    plan: free
     rootDir: Diseases_Detection_Paltform/backend
     # Optional: explicitly tell Render where the Dockerfile is relative to rootDir
     dockerfilePath: Dockerfile
@@ -20,6 +21,7 @@ services:
   - type: web
     name: disease-detection-frontend
     env: docker
+    plan: free
     rootDir: Diseases_Detection_Paltform/frontend
     dockerfilePath: Dockerfile
     envVars:
