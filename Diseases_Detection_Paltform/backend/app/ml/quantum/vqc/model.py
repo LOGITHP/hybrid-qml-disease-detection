@@ -1,9 +1,13 @@
 """Variational Quantum Classifier (VQC) wrapper implementing IModel interface."""
 
+import gc
+import logging
 from typing import Any, Dict, Optional
 import numpy as np
 from pennylane import numpy as pnp
 import pennylane as qml
+
+logger = logging.getLogger(__name__)
 from app.interfaces.model import IModel
 from app.ml.quantum.vqc.circuit import create_vqc_circuit
 from app.ml.quantum.vqc.noisy import create_noisy_vqc_circuit
@@ -89,19 +93,23 @@ class VariationalQuantumClassifier(IModel):
         return float(1.0 / (1.0 + pnp.exp(-logit)))
 
     def _forward_batch(self, X: np.ndarray, weights, bias) -> np.ndarray:
-        """Compute probabilities for a batch of feature vectors using parameter broadcasting."""
-        res = self.circuit(X, weights)
-        z_mean = pnp.mean(pnp.stack(res), axis=0)
-        logit = z_mean + bias
-        probs = 1.0 / (1.0 + pnp.exp(-logit))
-        return probs
+        """Compute probabilities for a batch — sample-by-sample to stay within memory limits."""
+        probs = []
+        for i in range(len(X)):
+            res = self.circuit(X[i], weights)
+            z_mean = pnp.mean(pnp.stack(res))
+            logit = z_mean + bias
+            prob = 1.0 / (1.0 + pnp.exp(-logit))
+            probs.append(prob)
+        return pnp.stack(probs)
 
     def fit(self, X: np.ndarray, y: np.ndarray, **kwargs: Any) -> "VariationalQuantumClassifier":
         """Train variational parameters using gradient descent / Adam optimizer."""
-        # Scale/bound features to [0, 1] if not already bounded
         X_pnp = pnp.array(X, requires_grad=False)
         y_pnp = pnp.array(y, requires_grad=False)
         num_samples = len(X)
+        # Use smaller batch size on memory-constrained environments
+        effective_batch = min(self.batch_size, 8)
 
         opt = qml.AdamOptimizer(stepsize=self.lr)
 
@@ -112,8 +120,8 @@ class VariationalQuantumClassifier(IModel):
 
         for epoch in range(self.epochs):
             indices = np.random.permutation(num_samples)
-            for start_idx in range(0, num_samples, self.batch_size):
-                batch_idx = indices[start_idx : start_idx + self.batch_size]
+            for start_idx in range(0, num_samples, effective_batch):
+                batch_idx = indices[start_idx : start_idx + effective_batch]
                 batch_x = X_pnp[batch_idx]
                 batch_y = y_pnp[batch_idx]
 
@@ -122,6 +130,8 @@ class VariationalQuantumClassifier(IModel):
                     self.weights,
                     self.bias,
                 )
+            gc.collect()
+            logger.info(f"[VQC] Epoch {epoch + 1}/{self.epochs} completed")
 
         return self
 

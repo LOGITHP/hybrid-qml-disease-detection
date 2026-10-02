@@ -211,7 +211,7 @@ class TrainingService:
             estimator = SVMRBFModel(C=c_value, gamma=hyperparameters.get("gamma", "scale"))
         elif template.model_type == "vqc":
             layers = int(hyperparameters.get("layers", layers))
-            epochs = int(hyperparameters.get("epochs", 5))
+            epochs = min(int(hyperparameters.get("epochs", 3)), 20)  # Cap at 20 for server memory
             requested_qubits = int(hyperparameters.get("n_qubits", X_train.shape[1]))
             learning_rate = float(hyperparameters.get("learning_rate", 0.03))
             batch_size = int(hyperparameters.get("batch_size", 32))
