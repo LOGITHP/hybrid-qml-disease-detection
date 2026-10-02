@@ -6,7 +6,9 @@ https://disease-detection-frontend-eqao.onrender.com/
 USER MAIL:hqml@gmail.com
 PASSWORD:12345678
 
-we had deployed on render's free tier it is limited with 512mb ram, so do not try to do intensive training with more feature and large vqc circuits, it may cause crashing
+we had deployed on render's free tier it is limited with 512mb ram, so do not try to do intensive training with more feature and large vqc circuits, it may cause crashing.
+
+But we had completed trained the models in local and attachedin demo video 
 \\\
 
 
