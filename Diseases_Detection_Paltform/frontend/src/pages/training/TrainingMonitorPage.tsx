@@ -71,6 +71,14 @@ export const TrainingMonitorPage: React.FC = () => {
         </section>
       )}
 
+      {run.status === 'failed' && (
+        <section className="card-scientific rounded-xl border border-red-200 bg-red-50 p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-red-900 mb-2">Training Failed</h2>
+          <p className="text-sm text-red-700">{run.error_message || 'An unexpected error occurred during training. Check the backend logs for details.'}</p>
+          <p className="text-xs text-red-500 mt-3">Try re-running preprocessing and feature selection, then start a new training run.</p>
+        </section>
+      )}
+
       <section className="card-scientific space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
           <div className="rounded-lg bg-slate-50 p-3"><span className="mb-1 flex items-center gap-2 text-slate-500"><Cpu className="h-4 w-4" />Model ID</span><span className="break-all font-mono">{run.model_id || 'Pending completion...'}</span></div>
