@@ -7,7 +7,8 @@ interface DatasetVisualizationsProps {
 }
 
 export const DatasetVisualizations: React.FC<DatasetVisualizationsProps> = ({ analysis }) => {
-  const { target_column, class_distribution, column_profiles, columns, missing_value_counts } = analysis;
+  if (!analysis) return null;
+  const { target_column, class_distribution, column_profiles, columns = [], missing_value_counts } = analysis;
 
   const targetData = useMemo(() => {
     if (!class_distribution) return [];
