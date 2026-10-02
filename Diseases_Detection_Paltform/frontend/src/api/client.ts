@@ -45,6 +45,8 @@ apiClient.interceptors.response.use(
       } else if (typeof error.response.data.detail === 'object' && error.response.data.detail.message) {
         errorMessage = error.response.data.detail.message;
       }
+    } else if (error.response?.data?.error?.message) {
+      errorMessage = error.response.data.error.message;
     } else if (error.response?.data?.message) {
       errorMessage = error.response.data.message;
     } else if (error.message) {
