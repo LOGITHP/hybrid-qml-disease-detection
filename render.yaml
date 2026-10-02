@@ -16,7 +16,8 @@ services:
         value: hybrid_qml_db
       - key: ENVIRONMENT
         value: production
-
+      - key: CORS_ORIGINS
+        value: "*"
   # Frontend Static Site
   - type: web
     name: disease-detection-frontend
