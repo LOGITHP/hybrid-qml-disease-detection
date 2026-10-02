@@ -1,5 +1,12 @@
 # Hybrid QML Disease Detection Platform
 A hybrid quantum-classical machine learning platform for early disease detection from medical datasets. The system uses AI-driven data preprocessing, classical ML models such as SVM, and Variational Quantum Classifiers (VQC) to analyze medical data and improve disease prediction. It supports quantum simulation, noise-aware evaluation , providing model comparison and interpretable results for healthcare applications.
+\\\
+## PROTOTYPE LINK:
+https://disease-detection-frontend-eqao.onrender.com/
+USER MAIL:hqml@gmail.com
+PASSWORD:12345678
+\\\
+
 
 # Future Scope
 Larger Medical Datasets: Train on larger and more diverse datasets for better generalization.
