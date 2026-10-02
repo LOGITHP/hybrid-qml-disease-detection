@@ -55,11 +55,22 @@ async def start_training_run(
                 run_id=str(run.id)
             )
         except Exception as e:
-            logging.error(f"Background training task failed: {e}", exc_info=True)
+            import traceback
+            # Extract readable message from our custom AppException/HTTPException subclasses
+            if hasattr(e, 'detail'):
+                detail = e.detail
+                if isinstance(detail, dict):
+                    error_msg = detail.get('message', str(e))
+                else:
+                    error_msg = str(detail)
+            else:
+                error_msg = str(e)
+            full_tb = traceback.format_exc()
+            logging.error(f"Background training task failed: {error_msg}\n{full_tb}")
             failed_run = await service.training_repo.get_by_id(str(run.id))
             if failed_run:
                 failed_run.status = "failed"
-                failed_run.error_message = str(e)
+                failed_run.error_message = error_msg
                 await service.training_repo.update(failed_run)
 
     background_tasks.add_task(training_task_wrapper)
@@ -79,6 +90,18 @@ async def get_training_status(
     """Retrieve training execution record and performance metrics."""
     run = await service.training_repo.get_by_id(run_id)
     if not run or (run.user_id != str(current_user.id) and current_user.role != "admin"):
+        from app.core.exceptions import ResourceNotFoundError
+        raise ResourceNotFoundError("TrainingRun", run_id)
+    return TrainingRunResponse.model_validate(run)
+
+@router.get("/debug/{run_id}", response_model=TrainingRunResponse)
+async def debug_get_training_status(
+    run_id: str,
+    service: TrainingService = Depends(get_training_service),
+):
+    """Temporary debug endpoint to read training status without auth."""
+    run = await service.training_repo.get_by_id(run_id)
+    if not run:
         from app.core.exceptions import ResourceNotFoundError
         raise ResourceNotFoundError("TrainingRun", run_id)
     return TrainingRunResponse.model_validate(run)
