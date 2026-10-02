@@ -17,13 +17,13 @@ services:
       - key: ENVIRONMENT
         value: production
 
-  # Frontend Web Service using Docker
-  - type: web
+  # Frontend Static Site
+  - type: static
     name: disease-detection-frontend
-    env: docker
-    plan: free
+    env: static
     rootDir: Diseases_Detection_Paltform/frontend
-    dockerfilePath: Dockerfile
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE_URL
         value: https://disease-detection-backend.onrender.com/api/v1
