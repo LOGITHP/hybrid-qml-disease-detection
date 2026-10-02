@@ -5,6 +5,7 @@ A hybrid quantum-classical machine learning platform for early disease detection
 https://disease-detection-frontend-eqao.onrender.com/
 USER MAIL:hqml@gmail.com
 PASSWORD:12345678
+we had deployed on render's free tier it is limited with 512mb ram, so do not try to intensive training with more feature , large vqc circuits, it may cause crashing
 \\\
 
 
